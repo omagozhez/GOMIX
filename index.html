@@ -16,49 +16,81 @@
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { height: 100%; -webkit-tap-highlight-color: transparent; }
-    body {
-      height: 100%;
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f7f7f5; color: #1a1a1a;
-      -webkit-font-smoothing: antialiased;
-    }
+    body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f7f5; color: #1a1a1a; -webkit-font-smoothing: antialiased; }
     #root { max-width: 480px; margin: 0 auto; background: #fff; min-height: 100%; padding: 0 16px; }
     input, textarea, select, button { font-family: inherit; }
-    input, textarea, select {
-      font-size: 15px; padding: 11px 14px; border-radius: 10px;
-      border: 1.5px solid #e0e0e0; background: #fff; color: #1a1a1a;
-      width: 100%; transition: border-color .15s, box-shadow .15s;
-      -webkit-appearance: none; appearance: none;
-    }
-    input:focus, textarea:focus, select:focus {
-      outline: none; border-color: #E8620A;
-      box-shadow: 0 0 0 3px rgba(232,98,10,.13);
-    }
+    input, textarea, select { font-size: 15px; padding: 11px 14px; border-radius: 10px; border: 1.5px solid #e0e0e0; background: #fff; color: #1a1a1a; width: 100%; transition: border-color .15s, box-shadow .15s; -webkit-appearance: none; appearance: none; }
+    input:focus, textarea:focus, select:focus { outline: none; border-color: #E8620A; box-shadow: 0 0 0 3px rgba(232,98,10,.13); }
     textarea { resize: vertical; line-height: 1.5; }
-    input[type="number"]::-webkit-inner-spin-button,
-    input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
     button { cursor: pointer; }
     img { display: block; }
     ::-webkit-scrollbar { width: 0; height: 0; }
-    @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes spin    { to { transform: rotate(360deg); } }
+    @keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
+    @keyframes fadeIn  { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+    @keyframes popIn   { 0% { transform: scale(.7); opacity: 0; } 80% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
+    .skel { background: linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px; }
+    .fadein { animation: fadeIn .25s ease both; }
+    /* Floating cart button */
+    #cart-fab {
+      position: fixed; bottom: 24px; right: 16px; z-index: 100;
+      width: 58px; height: 58px; border-radius: 50%; background: #E8620A;
+      border: none; box-shadow: 0 4px 16px rgba(232,98,10,.45);
+      display: flex; align-items: center; justify-content: center;
+      cursor: pointer; transition: transform .15s;
+    }
+    #cart-fab:active { transform: scale(.93); }
+    #cart-fab .badge {
+      position: absolute; top: -2px; right: -2px;
+      width: 22px; height: 22px; border-radius: 50%;
+      background: #1a1a1a; color: #fff;
+      font-size: 12px; font-weight: 800;
+      display: flex; align-items: center; justify-content: center;
+      border: 2.5px solid #fff;
+    }
+    .toast {
+      position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%);
+      background: #1a1a1a; color: #fff; padding: 9px 20px; border-radius: 24px;
+      font-size: 13px; font-weight: 600; z-index: 200;
+      animation: fadeIn .2s ease, fadeOut .3s ease 1.5s both;
+      white-space: nowrap;
+    }
+    @keyframes fadeOut { to { opacity: 0; transform: translateX(-50%) translateY(8px); } }
+    .status-nuevo       { background: #FEF3C7; color: #92400E; }
+    .status-en_proceso  { background: #DBEAFE; color: #1E40AF; }
+    .status-entregado   { background: #D1FAE5; color: #065F46; }
+    .status-cancelado   { background: #FEE2E2; color: #991B1B; }
   </style>
 </head>
 <body>
 <div id="root"></div>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script>
 'use strict';
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 const h = React.createElement;
 
-/* ── CONSTANTS ─────────────────────────────── */
-const B    = '#E8620A';
-const BL   = '#FFF8F5';
-const BD   = '#B54C08';
-const GRAY = '#6B7280';
-const PIN  = '9999';
+/* ══════════════════════════════════════════════════════
+   CONFIG — edita estos valores para activar la nube
+   Deja vacío ('') para modo demo con localStorage
+══════════════════════════════════════════════════════ */
+const CFG = {
+  supabaseUrl : '',          // ej. 'https://xxxx.supabase.co'
+  supabaseKey : '',          // anon/public key de Supabase
+  whatsapp    : '',          // teléfono con código de país: '5215512345678'
+  adminPin    : '9999',      // cambia este PIN (min. 4 caracteres)
+};
 
+/* ── Supabase client (null = modo localStorage) ── */
+const sb = (CFG.supabaseUrl && CFG.supabaseKey)
+  ? window.supabase.createClient(CFG.supabaseUrl, CFG.supabaseKey)
+  : null;
+
+/* ══════════════════════════════════════════════════════
+   DATOS INICIALES (demo / fallback sin Supabase)
+══════════════════════════════════════════════════════ */
 const INIT_PRODUCTS = [
   { id:1, producto:'Gomiboing de mango',   categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor mango con toppings a elegir añadidos.',        imagen:'https://images.unsplash.com/photo-1546173159-315724a31696?w=600&auto=format&fit=crop' },
   { id:2, producto:'Gomiboing de uva',     categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor uva con toppings a elegir añadidos.',          imagen:'https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=600&auto=format&fit=crop' },
@@ -69,553 +101,681 @@ const INIT_PRODUCTS = [
   { id:7, producto:'Frape de fresa',       categoria:'Frape',     precio:50, descripcion:'Suave frappé sabor fresa intensa, dulce y refrescante.',                   imagen:'https://images.unsplash.com/photo-1570197788417-0e82375c9371?w=600&auto=format&fit=crop' },
   { id:8, producto:'Frape de cajeta',      categoria:'Frape',     precio:50, descripcion:'Frappé cremoso con el toque dulce y tradicional de la cajeta.',            imagen:'https://images.unsplash.com/photo-1534353436294-0dbd4bdac845?w=600&auto=format&fit=crop' },
 ];
-
 const EMPTY_PROD = { producto:'', categoria:'', precio:'', descripcion:'', imagen:'' };
+const STATUS_LABELS = { nuevo:'Nuevo', en_proceso:'En proceso', entregado:'Entregado', cancelado:'Cancelado' };
 
-/* ── HELPERS ───────────────────────────────── */
+/* ══════════════════════════════════════════════════════
+   HELPERS
+══════════════════════════════════════════════════════ */
 const store = {
-  get: (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } },
-  set: (k, v)   => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
+  get : (k,d) => { try { const v=localStorage.getItem(k); return v?JSON.parse(v):d; } catch{return d;} },
+  set : (k,v) => { try { localStorage.setItem(k,JSON.stringify(v)); } catch{} },
 };
-const mxn = n => new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN' }).format(Number(n));
-const uid = () => Date.now() + Math.random();
+const mxn = n => new Intl.NumberFormat('es-MX',{style:'currency',currency:'MXN'}).format(Number(n));
+const uid = () => `${Date.now()}-${Math.random().toString(36).slice(2,7)}`;
+const fallback = cat => cat==='Frape' ? 'cup' : 'snowflake';
 
-/* ── BASE COMPONENTS ───────────────────────── */
-const Icon = ({ name, sz=18, style:s }) =>
-  h('i', { className:`ti ti-${name}`, style:{ fontSize:sz, lineHeight:1, ...s }, 'aria-hidden':true });
-
-const Btn = ({ onClick, color=B, textColor='#fff', border='none', bg, children, full=true, disabled }) =>
-  h('button', {
-    onClick, disabled,
-    style:{
-      width: full ? '100%' : 'auto',
-      padding:'13px 20px', borderRadius:12,
-      background: disabled ? '#ccc' : (bg || color),
-      color: disabled ? '#fff' : textColor,
-      border, fontSize:15, fontWeight:700,
-      cursor: disabled ? 'not-allowed' : 'pointer',
-      display:'flex', alignItems:'center', justifyContent:'center', gap:8,
-      transition:'opacity .15s', WebkitTapHighlightColor:'transparent',
-    }
-  }, ...children);
-
-const Field = ({ label, icon, err, children }) =>
-  h('div', null,
-    h('label', { style:{ fontSize:13, fontWeight:600, color:GRAY, display:'block', marginBottom:7, letterSpacing:.2 } },
-      h(Icon, { name:icon, sz:14, style:{ verticalAlign:-2, marginRight:4 } }), label),
-    children,
-    err && h('span', { style:{ fontSize:12, color:'#C62828', marginTop:5, display:'block', fontWeight:500 } },
-      h(Icon, { name:'alert-circle', sz:12, style:{ verticalAlign:-1, marginRight:3 } }), err)
-  );
-
-const BackBar = ({ onBack, title }) =>
-  h('div', {
-    style:{
-      display:'flex', alignItems:'center', gap:10,
-      padding:'14px 0', borderBottom:'1px solid #f0f0f0', marginBottom:18,
-      position:'sticky', top:0, background:'#fff', zIndex:10,
-    }
-  },
-    h('button', {
-      onClick: onBack,
-      style:{ background:'none', border:'none', padding:'5px 6px', cursor:'pointer', color:GRAY, display:'flex', lineHeight:1, borderRadius:8 },
-    }, h(Icon, { name:'arrow-left', sz:24 })),
-    h('span', { style:{ fontSize:17, fontWeight:700, flex:1, color:'#1a1a1a' } }, title)
-  );
-
-/* Renders a product image — base64 or external URL */
-const ProductImg = ({ src, id, imgErrs, setImgErrs, height=130, icon='snowflake' }) => {
-  if (src && !imgErrs[id]) {
-    return h('img', {
-      key: src.slice(-30),
-      src, alt:'',
-      style:{ width:'100%', height:'100%', objectFit:'cover' },
-      onError: () => setImgErrs(e => ({ ...e, [id]:true })),
-    });
+/* Upload image: Supabase Storage if available, else base64 */
+const uploadImg = async (file) => {
+  if (sb) {
+    const ext  = (file.name.split('.').pop()||'jpg').toLowerCase();
+    const path = `${uid()}.${ext}`;
+    const { error } = await sb.storage.from('product-images').upload(path, file, { upsert:true });
+    if (error) throw error;
+    const { data } = sb.storage.from('product-images').getPublicUrl(path);
+    return data.publicUrl;
   }
-  return h(Icon, { name:icon, sz:Math.round(height * .32), style:{ color:B } });
+  return new Promise((res,rej) => {
+    const r = new FileReader();
+    r.onload  = ev => res(ev.target.result);
+    r.onerror = rej;
+    r.readAsDataURL(file);
+  });
 };
 
-/* ── APP ───────────────────────────────────── */
+/* ══════════════════════════════════════════════════════
+   BASE COMPONENTS
+══════════════════════════════════════════════════════ */
+const B=`#E8620A`, BL=`#FFF8F5`, BD=`#B54C08`, GRAY=`#6B7280`;
+
+const Icon = ({name,sz=18,style:s}) =>
+  h('i',{className:`ti ti-${name}`,style:{fontSize:sz,lineHeight:1,...s},'aria-hidden':true});
+
+const Btn = ({onClick,bg=B,fg='#fff',border='none',full=true,disabled,children,small}) =>
+  h('button',{onClick,disabled,style:{
+    width:full?'100%':'auto', padding:small?'9px 14px':'13px 20px',
+    borderRadius:12, background:disabled?'#ccc':bg, color:disabled?'#fff':fg, border,
+    fontSize:small?13:15, fontWeight:700, cursor:disabled?'not-allowed':'pointer',
+    display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+    transition:'opacity .15s', WebkitTapHighlightColor:'transparent',
+  }},...children);
+
+const Field = ({label,icon,err,children}) =>
+  h('div',null,
+    h('label',{style:{fontSize:13,fontWeight:600,color:GRAY,display:'block',marginBottom:7}},
+      h(Icon,{name:icon,sz:14,style:{verticalAlign:-2,marginRight:4}}),label),
+    children,
+    err&&h('span',{style:{fontSize:12,color:'#C62828',marginTop:5,display:'block',fontWeight:500}},
+      h(Icon,{name:'alert-circle',sz:12,style:{verticalAlign:-1,marginRight:3}}),err)
+  );
+
+const BackBar = ({onBack,title}) =>
+  h('div',{style:{display:'flex',alignItems:'center',gap:10,padding:'14px 0',borderBottom:'1px solid #f0f0f0',marginBottom:18,position:'sticky',top:0,background:'#fff',zIndex:10}},
+    h('button',{onClick:onBack,style:{background:'none',border:'none',padding:'5px 6px',cursor:'pointer',color:GRAY,display:'flex',lineHeight:1,borderRadius:8}},
+      h(Icon,{name:'arrow-left',sz:24})),
+    h('span',{style:{fontSize:17,fontWeight:700,flex:1}},title)
+  );
+
+/* Skeleton card */
+const SkProd = () => h('div',{style:{borderRadius:14,overflow:'hidden',border:'1px solid #efefef'}},
+  h('div',{className:'skel',style:{height:130}}),
+  h('div',{style:{padding:'10px 12px 13px'}},
+    h('div',{className:'skel',style:{height:10,width:'55%',marginBottom:8}}),
+    h('div',{className:'skel',style:{height:14,width:'85%',marginBottom:10}}),
+    h('div',{className:'skel',style:{height:17,width:'40%'}})
+  )
+);
+
+/* Product image with error fallback */
+const ProductImg = ({src,id,imgErrs,setImgErrs,h:ht=130,icon='snowflake'}) => {
+  if (src && !imgErrs[id])
+    return h('img',{key:src.slice(-30),src,alt:'',style:{width:'100%',height:'100%',objectFit:'cover'},onError:()=>setImgErrs(e=>({...e,[id]:true}))});
+  return h(Icon,{name:icon,sz:Math.round(ht*.32),style:{color:B}});
+};
+
+/* ══════════════════════════════════════════════════════
+   APP
+══════════════════════════════════════════════════════ */
 function App() {
+  /* ── core state ── */
   const [screen,     setScreen]     = useState('home');
-  const [products,   setProducts]   = useState(() => store.get('gomix_products', INIT_PRODUCTS));
+  const [products,   setProducts]   = useState(INIT_PRODUCTS);
+  const [loadingP,   setLoadingP]   = useState(true);
+  const [cart,       setCart]       = useState([]);
+  const [orders,     setOrders]     = useState(()=>store.get('gomix_orders',[]));
+  const [buyForm,    setBuyForm]    = useState({nombre:'',pago:'efectivo',direccion:''});
+  const [buyErrs,    setBuyErrs]    = useState({});
   const [sel,        setSel]        = useState(null);
   const [qty,        setQty]        = useState(1);
-  const [orders,     setOrders]     = useState(() => store.get('gomix_orders', []));
-  const [buyForm,    setBuyForm]    = useState({ nombre:'', pago:'efectivo', direccion:'' });
-  const [buyErrs,    setBuyErrs]    = useState({});
-  const [pin,        setPin]        = useState('');
-  const [pinErr,     setPinErr]     = useState(false);
   const [cat,        setCat]        = useState('Todos');
   const [imgErrs,    setImgErrs]    = useState({});
+  const [toast,      setToast]      = useState(null);
+  /* ── admin state ── */
+  const [pin,        setPin]        = useState('');
+  const [pinErr,     setPinErr]     = useState(false);
   const [adminTab,   setAdminTab]   = useState('pedidos');
   const [editId,     setEditId]     = useState(null);
   const [prodForm,   setProdForm]   = useState(EMPTY_PROD);
   const [prodErrs,   setProdErrs]   = useState({});
   const [delId,      setDelId]      = useState(null);
   const [imgLoading, setImgLoading] = useState(false);
-  const pinRef      = useRef(null);
-  const imgInputRef = useRef(null);
+  const [savingProd, setSavingProd] = useState(false);
+  const [statusSel,  setStatusSel]  = useState(null);
+  const pinRef     = useRef(null);
+  const imgInputRef= useRef(null);
+  const toastTimer = useRef(null);
 
-  useEffect(() => store.set('gomix_products', products), [products]);
-  useEffect(() => store.set('gomix_orders',   orders),   [orders]);
-  useEffect(() => { window.scrollTo(0, 0); }, [screen]);
-  useEffect(() => { if (screen === 'adminLogin') setTimeout(() => pinRef.current?.focus(), 100); }, [screen]);
+  /* ── cart helpers ── */
+  const cartCount = cart.reduce((s,i)=>s+i.qty,0);
+  const cartTotal = cart.reduce((s,i)=>s+i.precio*i.qty,0);
 
-  const cats      = ['Todos', ...new Set(products.map(p => p.categoria).filter(Boolean))];
-  const adminCats = [...new Set(products.map(p => p.categoria).filter(Boolean))];
-  const visible   = cat === 'Todos' ? products : products.filter(p => p.categoria === cat);
+  const addToCart = (product, amount) => {
+    setCart(prev => {
+      const ex = prev.find(i=>i.id===product.id);
+      if (ex) return prev.map(i=>i.id===product.id?{...i,qty:i.qty+amount}:i);
+      return [...prev, {...product, qty:amount}];
+    });
+    showToast(`✓ ${product.producto} agregado`);
+  };
+  const updateQty = (id, nq) => {
+    if (nq<=0) setCart(prev=>prev.filter(i=>i.id!==id));
+    else       setCart(prev=>prev.map(i=>i.id===id?{...i,qty:nq}:i));
+  };
+  const clearCart = () => setCart([]);
 
-  /* navigation */
-  const openProduct = p => { setSel(p); setQty(1); setScreen('product'); };
-  const goHome      = () => { setScreen('home'); };
-  const goAdmin     = () => { setScreen('admin'); setPin(''); setPinErr(false); setAdminTab('pedidos'); setEditId(null); setDelId(null); };
-
-  /* checkout */
-  const submitOrder = () => {
-    const e = {};
-    if (!buyForm.nombre.trim())    e.nombre    = 'Escribe tu nombre';
-    if (!buyForm.direccion.trim()) e.direccion = 'Escribe tu dirección';
-    if (Object.keys(e).length) { setBuyErrs(e); return; }
-    setOrders(prev => [{ id:uid(), ...sel, cant:qty, total:sel.precio*qty, ...buyForm, fecha:new Date().toLocaleString('es-MX') }, ...prev]);
-    setScreen('done');
+  /* ── toast ── */
+  const showToast = msg => {
+    clearTimeout(toastTimer.current);
+    setToast(msg);
+    toastTimer.current = setTimeout(()=>setToast(null), 2000);
   };
 
-  /* auth */
-  const doLogin = () => { if (pin === PIN) goAdmin(); else { setPinErr(true); setPin(''); } };
+  /* ── persist orders to localStorage ── */
+  useEffect(()=>{ if(!sb) store.set('gomix_orders',orders); },[orders]);
 
-  /* product CRUD */
-  const startNew  = () => { setProdForm(EMPTY_PROD); setProdErrs({}); setImgLoading(false); setEditId('new'); };
-  const startEdit = p  => { setProdForm({ ...p, precio:String(p.precio) }); setProdErrs({}); setImgLoading(false); setEditId(p.id); };
-  const cancelEdit    = () => { setEditId(null); setProdErrs({}); };
+  /* ── scroll top on screen change ── */
+  useEffect(()=>{ window.scrollTo(0,0); },[screen]);
 
-  const validateProd = () => {
-    const e = {};
-    if (!prodForm.producto.trim())    e.producto    = 'Nombre requerido';
-    if (!prodForm.categoria.trim())   e.categoria   = 'Categoría requerida';
-    if (!prodForm.precio || isNaN(Number(prodForm.precio)) || Number(prodForm.precio) <= 0)
-                                      e.precio      = 'Precio inválido';
-    if (!prodForm.descripcion.trim()) e.descripcion = 'Descripción requerida';
+  /* ── focus PIN ── */
+  useEffect(()=>{ if(screen==='adminLogin') setTimeout(()=>pinRef.current?.focus(),120); },[screen]);
+
+  /* ── load products ── */
+  useEffect(()=>{
+    const load = async()=>{
+      setLoadingP(true);
+      if(sb){
+        const {data,error} = await sb.from('products').select('*').eq('activo',true).order('orden',{ascending:true}).order('created_at',{ascending:true});
+        if(!error && data) setProducts(data);
+        else setProducts(store.get('gomix_products',INIT_PRODUCTS));
+      } else {
+        setProducts(store.get('gomix_products',INIT_PRODUCTS));
+      }
+      setLoadingP(false);
+    };
+    load();
+  },[]);
+
+  /* ── load orders (admin) + realtime ── */
+  useEffect(()=>{
+    if(screen!=='admin' || !sb) return;
+    sb.from('orders').select('*').order('created_at',{ascending:false}).then(({data})=>{ if(data) setOrders(data); });
+    const ch = sb.channel('gomix-orders')
+      .on('postgres_changes',{event:'INSERT',schema:'public',table:'orders'},
+          p=>setOrders(prev=>[p.new,...prev]))
+      .on('postgres_changes',{event:'UPDATE',schema:'public',table:'orders'},
+          p=>setOrders(prev=>prev.map(o=>o.id===p.new.id?p.new:o)))
+      .subscribe();
+    return ()=>sb.removeChannel(ch);
+  },[screen]);
+
+  /* ── product CRUD ── */
+  const startNew  = ()=>{ setProdForm(EMPTY_PROD); setProdErrs({}); setImgLoading(false); setEditId('new'); };
+  const startEdit = p=>{ setProdForm({...p,precio:String(p.precio)}); setProdErrs({}); setImgLoading(false); setEditId(p.id); };
+  const cancelEdit= ()=>{ setEditId(null); setProdErrs({}); };
+
+  const validateProd = ()=>{
+    const e={};
+    if(!prodForm.producto.trim())    e.producto='Nombre requerido';
+    if(!prodForm.categoria.trim())   e.categoria='Categoría requerida';
+    if(!prodForm.precio||isNaN(+prodForm.precio)||+prodForm.precio<=0) e.precio='Precio inválido';
+    if(!prodForm.descripcion.trim()) e.descripcion='Descripción requerida';
     setProdErrs(e);
     return !Object.keys(e).length;
   };
 
-  const saveProd = () => {
-    if (!validateProd()) return;
-    const p = { ...prodForm, precio:Number(prodForm.precio) };
-    if (editId === 'new') {
-      setProducts(prev => [...prev, { ...p, id:uid() }]);
-    } else {
-      setProducts(prev => prev.map(x => x.id === editId ? { ...x, ...p } : x));
-      if (sel?.id === editId) setSel(s => ({ ...s, ...p }));
-    }
-    setEditId(null);
+  const saveProd = async()=>{
+    if(!validateProd()) return;
+    setSavingProd(true);
+    const p = {...prodForm, precio:Number(prodForm.precio)};
+    try {
+      if(sb){
+        if(editId==='new'){
+          const {data,error}=await sb.from('products').insert([p]).select();
+          if(!error && data) setProducts(prev=>[...prev,data[0]]);
+        } else {
+          const {error}=await sb.from('products').update(p).eq('id',editId);
+          if(!error){ setProducts(prev=>prev.map(x=>x.id===editId?{...x,...p}:x)); if(sel?.id===editId) setSel(s=>({...s,...p})); }
+        }
+        store.set('gomix_products',products);
+      } else {
+        if(editId==='new'){ const np={...p,id:uid()}; setProducts(prev=>{const n=[...prev,np]; store.set('gomix_products',n); return n;}); }
+        else { setProducts(prev=>{const n=prev.map(x=>x.id===editId?{...x,...p}:x); store.set('gomix_products',n); return n;}); if(sel?.id===editId) setSel(s=>({...s,...p})); }
+      }
+      setEditId(null);
+    } finally { setSavingProd(false); }
   };
 
-  const deleteProd = () => { setProducts(prev => prev.filter(p => p.id !== delId)); setDelId(null); };
+  const deleteProd = async()=>{
+    if(sb) await sb.from('products').update({activo:false}).eq('id',delId);
+    setProducts(prev=>{ const n=prev.filter(p=>p.id!==delId); store.set('gomix_products',n); return n; });
+    setDelId(null);
+  };
 
-  /* field helpers */
-  const pf = (key, val) => { setProdForm(f => ({ ...f, [key]:val })); setProdErrs(e => ({ ...e, [key]:'' })); };
-  const bf = (key, val) => { setBuyForm(f  => ({ ...f, [key]:val })); setBuyErrs(e  => ({ ...e, [key]:'' })); };
+  const updateOrderStatus = async(orderId,status)=>{
+    if(sb) await sb.from('orders').update({status}).eq('id',orderId);
+    setOrders(prev=>prev.map(o=>o.id===orderId?{...o,status}:o));
+    setStatusSel(null);
+  };
 
-  /* image picker */
-  const pickImage = e => { e.stopPropagation(); imgInputRef.current?.click(); };
+  /* ── field helpers ── */
+  const pf=(k,v)=>{ setProdForm(f=>({...f,[k]:v})); setProdErrs(e=>({...e,[k]:''})); };
+  const bf=(k,v)=>{ setBuyForm(f=>({...f,[k]:v}));  setBuyErrs(e=>({...e,[k]:''})); };
 
-  const onImgPicked = e => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  /* ── image picker ── */
+  const pickImage = e=>{ e.stopPropagation(); imgInputRef.current?.click(); };
+  const onImgPicked = async e=>{
+    const file=e.target.files?.[0]; if(!file) return;
     setImgLoading(true);
-    const reader = new FileReader();
-    reader.onload  = ev => { setProdForm(f => ({ ...f, imagen:ev.target.result })); setImgLoading(false); };
-    reader.onerror = ()  => setImgLoading(false);
-    reader.readAsDataURL(file);
-    e.target.value = '';
+    try { const url=await uploadImg(file); setProdForm(f=>({...f,imagen:url})); }
+    catch { showToast('Error al cargar imagen'); }
+    finally { setImgLoading(false); e.target.value=''; }
   };
 
-  const fallback = cat => cat === 'Frape' ? 'cup' : 'snowflake';
+  /* ── auth ── */
+  const doLogin=()=>{ if(pin===CFG.adminPin){setScreen('admin');setPin('');setPinErr(false);setAdminTab('pedidos');setEditId(null);setDelId(null);setStatusSel(null);}else{setPinErr(true);setPin('');} };
+  const goHome=()=>setScreen('home');
 
-  /* ════════════════════════
-     HOME
-  ════════════════════════ */
-  if (screen === 'home') return h('div', { style:{ paddingBottom:32 } },
-    h('div', { style:{ display:'flex', alignItems:'center', gap:12, padding:'18px 0 16px', borderBottom:'1px solid #f0f0f0', marginBottom:16 } },
-      h('div', { style:{ width:44, height:44, borderRadius:13, background:B, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 } },
-        h(Icon, { name:'snowflake', sz:24, style:{ color:'#fff' } })),
-      h('div', { style:{ flex:1 } },
-        h('div', { style:{ fontSize:26, fontWeight:800, color:B, lineHeight:1 } }, 'GOMIX'),
-        h('div', { style:{ fontSize:12, color:GRAY, marginTop:2 } }, 'Antojitos y bebidas a domicilio')
+  /* ── submit order ── */
+  const submitOrder = async()=>{
+    const e={};
+    if(!buyForm.nombre.trim())    e.nombre='Escribe tu nombre';
+    if(!buyForm.direccion.trim()) e.direccion='Escribe tu dirección';
+    if(Object.keys(e).length){setBuyErrs(e);return;}
+    const order={id:uid(),items:[...cart],total:cartTotal,...buyForm,status:'nuevo',fecha:new Date().toLocaleString('es-MX')};
+    if(sb){
+      await sb.from('orders').insert([{items:cart,total:cartTotal,nombre:buyForm.nombre,pago:buyForm.pago,direccion:buyForm.direccion,status:'nuevo'}]);
+    } else {
+      setOrders(prev=>[order,...prev]);
+    }
+    clearCart();
+    setScreen('done');
+    // WhatsApp
+    if(CFG.whatsapp){
+      const lines=cart.map(i=>`• ${i.producto} x${i.qty} — ${mxn(i.precio*i.qty)}`).join('\n');
+      const msg=`🛍️ *Nuevo pedido GOMIX*\n\n${lines}\n\n*Total:* ${mxn(cartTotal)}\n*Nombre:* ${buyForm.nombre}\n*Pago:* ${buyForm.pago==='efectivo'?'Efectivo':'Transferencia'}\n*Dirección:* ${buyForm.direccion}`;
+      setTimeout(()=>window.open(`https://wa.me/${CFG.whatsapp}?text=${encodeURIComponent(msg)}`,'_blank'),600);
+    }
+  };
+
+  /* ── derived ── */
+  const cats   = ['Todos',...new Set(products.map(p=>p.categoria).filter(Boolean))];
+  const adminCats = [...new Set(products.map(p=>p.categoria).filter(Boolean))];
+  const visible= cat==='Todos'?products:products.filter(p=>p.categoria===cat);
+
+  /* ════════════════════════════════════════
+     FLOATING CART BUTTON (global)
+  ════════════════════════════════════════ */
+  const CartFAB = ()=> cartCount>0 && !['cart','checkout','adminLogin','admin'].includes(screen)
+    ? h('button',{id:'cart-fab',onClick:()=>setScreen('cart'),'aria-label':'Ver carrito'},
+        h(Icon,{name:'shopping-cart',sz:24,style:{color:'#fff'}}),
+        h('div',{className:'badge'},cartCount)
+      ) : null;
+
+  /* ════════════════════════════════════════
+     SCREEN: HOME
+  ════════════════════════════════════════ */
+  if(screen==='home') return h('div',{style:{paddingBottom:100}},
+    h(CartFAB),
+    toast && h('div',{className:'toast'},toast),
+    /* header */
+    h('div',{style:{display:'flex',alignItems:'center',gap:12,padding:'18px 0 16px',borderBottom:'1px solid #f0f0f0',marginBottom:16}},
+      h('div',{style:{width:44,height:44,borderRadius:13,background:B,display:'flex',alignItems:'center',justifyContent:'center',flexShrink:0}},
+        h(Icon,{name:'snowflake',sz:24,style:{color:'#fff'}})),
+      h('div',{style:{flex:1}},
+        h('div',{style:{fontSize:26,fontWeight:800,color:B,lineHeight:1}},'GOMIX'),
+        h('div',{style:{fontSize:12,color:GRAY,marginTop:2}},'Antojitos y bebidas a domicilio')
       ),
-      h('button', {
-        onClick: () => { setPin(''); setPinErr(false); setScreen('adminLogin'); },
-        style:{ fontSize:13, padding:'7px 12px', borderRadius:9, border:'1.5px solid #e8e8e8', background:'none', cursor:'pointer', color:GRAY, display:'flex', alignItems:'center', gap:5, fontWeight:500 },
-      }, h(Icon, { name:'lock', sz:14 }), 'Admin')
+      h('button',{onClick:()=>{setPin('');setPinErr(false);setScreen('adminLogin');},style:{fontSize:13,padding:'7px 12px',borderRadius:9,border:'1.5px solid #e8e8e8',background:'none',cursor:'pointer',color:GRAY,display:'flex',alignItems:'center',gap:5,fontWeight:500}},
+        h(Icon,{name:'lock',sz:14}),' Admin')
     ),
-    h('div', { style:{ display:'flex', gap:8, overflowX:'auto', paddingBottom:14, marginBottom:16 } },
-      cats.map(c => h('button', {
-        key:c, onClick:() => setCat(c),
-        style:{ padding:'7px 18px', borderRadius:24, border:'1.5px solid', borderColor:cat===c?B:'#e8e8e8', background:cat===c?BL:'#fff', color:cat===c?BD:GRAY, cursor:'pointer', fontSize:13, fontWeight:cat===c?700:400, whiteSpace:'nowrap', flexShrink:0 },
-      }, c))
+    /* cloud status */
+    sb && h('div',{style:{fontSize:11,color:'#2E7D32',background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:8,padding:'6px 12px',marginBottom:12,display:'flex',alignItems:'center',gap:6}},
+      h(Icon,{name:'cloud',sz:12}), 'Conectado a Supabase — datos en tiempo real'),
+    /* category tabs */
+    h('div',{style:{display:'flex',gap:8,overflowX:'auto',paddingBottom:14,marginBottom:16}},
+      cats.map(c=>h('button',{key:c,onClick:()=>setCat(c),style:{padding:'7px 18px',borderRadius:24,border:'1.5px solid',borderColor:cat===c?B:'#e8e8e8',background:cat===c?BL:'#fff',color:cat===c?BD:GRAY,cursor:'pointer',fontSize:13,fontWeight:cat===c?700:400,whiteSpace:'nowrap',flexShrink:0}},c))
     ),
-    h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:12 } },
-      visible.map(p => h('div', {
-        key:p.id, onClick:() => openProduct(p),
-        style:{ background:'#fff', border:'1px solid #efefef', borderRadius:14, overflow:'hidden', cursor:'pointer' },
-      },
-        h('div', { style:{ height:130, background:'#f5f5f5', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' } },
-          h(ProductImg, { src:p.imagen, id:p.id, imgErrs, setImgErrs, height:130, icon:fallback(p.categoria) })
-        ),
-        h('div', { style:{ padding:'10px 12px 13px' } },
-          h('div', { style:{ fontSize:11, color:'#aaa', marginBottom:2 } }, p.categoria),
-          h('div', { style:{ fontSize:14, fontWeight:700, lineHeight:1.35, marginBottom:6 } }, p.producto),
-          h('div', { style:{ fontSize:17, fontWeight:800, color:B } }, mxn(p.precio))
-        )
-      ))
+    /* product grid or skeletons */
+    h('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12}},
+      loadingP
+        ? [1,2,3,4,5,6].map(k=>h(SkProd,{key:k}))
+        : visible.map(p=>h('div',{key:p.id,onClick:()=>{setSel(p);setQty(1);setScreen('product');},className:'fadein',style:{background:'#fff',border:'1px solid #efefef',borderRadius:14,overflow:'hidden',cursor:'pointer'}},
+            h('div',{style:{height:130,background:'#f5f5f5',overflow:'hidden',display:'flex',alignItems:'center',justifyContent:'center'}},
+              h(ProductImg,{src:p.imagen,id:p.id,imgErrs,setImgErrs,h:130,icon:fallback(p.categoria)})
+            ),
+            h('div',{style:{padding:'10px 12px 13px'}},
+              h('div',{style:{fontSize:11,color:'#aaa',marginBottom:2}},p.categoria),
+              h('div',{style:{fontSize:14,fontWeight:700,lineHeight:1.35,marginBottom:6}},p.producto),
+              h('div',{style:{fontSize:17,fontWeight:800,color:B}},mxn(p.precio))
+            )
+          ))
     )
   );
 
-  /* ════════════════════════
-     PRODUCT DETAIL
-  ════════════════════════ */
-  if (screen === 'product' && sel) return h('div', { style:{ paddingBottom:32 } },
-    h(BackBar, { onBack:goHome, title:sel.producto }),
-    h('div', { style:{ height:250, borderRadius:16, overflow:'hidden', background:'#f5f5f5', marginBottom:18, display:'flex', alignItems:'center', justifyContent:'center' } },
-      h(ProductImg, { src:sel.imagen, id:sel.id, imgErrs, setImgErrs, height:250, icon:fallback(sel.categoria) })
+  /* ════════════════════════════════════════
+     SCREEN: PRODUCT DETAIL
+  ════════════════════════════════════════ */
+  if(screen==='product' && sel) return h('div',{style:{paddingBottom:100}},
+    h(CartFAB),
+    toast && h('div',{className:'toast'},toast),
+    h(BackBar,{onBack:goHome,title:sel.producto}),
+    h('div',{style:{height:250,borderRadius:16,overflow:'hidden',background:'#f5f5f5',marginBottom:18,display:'flex',alignItems:'center',justifyContent:'center'}},
+      h(ProductImg,{src:sel.imagen,id:sel.id,imgErrs,setImgErrs,h:250,icon:fallback(sel.categoria)})
     ),
-    h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 } },
-      h('div', { style:{ flex:1 } },
-        h('div', { style:{ fontSize:11, color:'#aaa', textTransform:'uppercase', letterSpacing:1, marginBottom:4 } }, sel.categoria),
-        h('div', { style:{ fontSize:23, fontWeight:800, lineHeight:1.2 } }, sel.producto)
+    h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:14}},
+      h('div',{style:{flex:1}},
+        h('div',{style:{fontSize:11,color:'#aaa',textTransform:'uppercase',letterSpacing:1,marginBottom:4}},sel.categoria),
+        h('div',{style:{fontSize:23,fontWeight:800,lineHeight:1.2}},sel.producto)
       ),
-      h('div', { style:{ fontSize:26, fontWeight:800, color:B, flexShrink:0, marginLeft:12 } }, mxn(sel.precio))
+      h('div',{style:{fontSize:26,fontWeight:800,color:B,flexShrink:0,marginLeft:12}},mxn(sel.precio))
     ),
-    h('div', { style:{ background:'#fafafa', borderRadius:12, padding:'14px 16px', marginBottom:22 } },
-      h('div', { style:{ fontSize:11, fontWeight:700, color:GRAY, textTransform:'uppercase', letterSpacing:.8, marginBottom:7 } },
-        h(Icon, { name:'leaf', sz:13, style:{ verticalAlign:-1, marginRight:4 } }), 'Descripción'),
-      h('p', { style:{ margin:0, fontSize:14, lineHeight:1.7, color:'#444' } }, sel.descripcion)
+    h('div',{style:{background:'#fafafa',borderRadius:12,padding:'14px 16px',marginBottom:22}},
+      h('div',{style:{fontSize:11,fontWeight:700,color:GRAY,textTransform:'uppercase',letterSpacing:.8,marginBottom:7}},
+        h(Icon,{name:'leaf',sz:13,style:{verticalAlign:-1,marginRight:4}}),' Descripción'),
+      h('p',{style:{margin:0,fontSize:14,lineHeight:1.7,color:'#444'}},sel.descripcion)
     ),
-    h('div', { style:{ display:'flex', alignItems:'center', marginBottom:22 } },
-      h('span', { style:{ flex:1, fontSize:16, fontWeight:700 } }, 'Cantidad'),
-      h('div', { style:{ display:'flex', alignItems:'center', border:'1.5px solid #e8e8e8', borderRadius:12, overflow:'hidden' } },
-        h('button', { onClick:() => setQty(q => Math.max(1,q-1)), style:{ width:44, height:44, background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:qty===1?'#ccc':'#333' } }, h(Icon, { name:'minus', sz:18 })),
-        h('span', { style:{ width:44, textAlign:'center', fontSize:18, fontWeight:800 } }, qty),
-        h('button', { onClick:() => setQty(q => q+1), style:{ width:44, height:44, background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#333' } }, h(Icon, { name:'plus', sz:18 }))
+    /* qty stepper */
+    h('div',{style:{display:'flex',alignItems:'center',marginBottom:20}},
+      h('span',{style:{flex:1,fontSize:16,fontWeight:700}},'Cantidad'),
+      h('div',{style:{display:'flex',alignItems:'center',border:'1.5px solid #e8e8e8',borderRadius:12,overflow:'hidden'}},
+        h('button',{onClick:()=>setQty(q=>Math.max(1,q-1)),style:{width:44,height:44,background:'none',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:qty===1?'#ccc':'#333'}},h(Icon,{name:'minus',sz:18})),
+        h('span',{style:{width:44,textAlign:'center',fontSize:18,fontWeight:800}},qty),
+        h('button',{onClick:()=>setQty(q=>q+1),style:{width:44,height:44,background:'none',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#333'}},h(Icon,{name:'plus',sz:18}))
       ),
-      h('span', { style:{ minWidth:100, textAlign:'right', fontSize:20, fontWeight:800, color:B } }, mxn(sel.precio*qty))
+      h('span',{style:{minWidth:100,textAlign:'right',fontSize:20,fontWeight:800,color:B}},mxn(sel.precio*qty))
     ),
-    h(Btn, { onClick:() => { setBuyForm({ nombre:'', pago:'efectivo', direccion:'' }); setBuyErrs({}); setScreen('checkout'); } },
-      h(Icon, { name:'shopping-cart', sz:19 }), 'Comprar — ', mxn(sel.precio*qty))
+    /* action buttons */
+    h('div',{style:{display:'flex',gap:10}},
+      h(Btn,{onClick:()=>addToCart(sel,qty),bg:BL,fg:BD,border:`1.5px solid ${B}`,full:false},
+        h(Icon,{name:'shopping-cart-plus',sz:18}),'Agregar al carrito'),
+      h('div',{style:{flex:1}},
+        h(Btn,{onClick:()=>{ addToCart(sel,qty); setBuyForm({nombre:'',pago:'efectivo',direccion:''}); setBuyErrs({}); setTimeout(()=>setScreen('checkout'),50); }},
+          h(Icon,{name:'bolt',sz:18}),'Comprar ya')
+      )
+    )
   );
 
-  /* ════════════════════════
-     CHECKOUT
-  ════════════════════════ */
-  if (screen === 'checkout' && sel) return h('div', { style:{ paddingBottom:32 } },
-    h(BackBar, { onBack:() => setScreen('product'), title:'Datos de entrega' }),
-    h('div', { style:{ background:'#fafafa', borderRadius:12, padding:'14px 16px', marginBottom:22 } },
-      h('div', { style:{ fontSize:11, fontWeight:700, color:GRAY, textTransform:'uppercase', letterSpacing:.8, marginBottom:10 } }, 'Resumen del pedido'),
-      h('div', { style:{ display:'flex', justifyContent:'space-between', fontSize:14, marginBottom:10 } },
-        h('span', { style:{ color:'#555' } }, sel.producto,' × ',qty),
-        h('span', { style:{ fontWeight:700 } }, mxn(sel.precio*qty))
-      ),
-      h('div', { style:{ borderTop:'1px solid #ebebeb', paddingTop:10, display:'flex', justifyContent:'space-between', fontSize:17, fontWeight:800 } },
-        h('span', null, 'Total'), h('span', { style:{ color:B } }, mxn(sel.precio*qty))
+  /* ════════════════════════════════════════
+     SCREEN: CART
+  ════════════════════════════════════════ */
+  if(screen==='cart') return h('div',{style:{paddingBottom:32}},
+    h(BackBar,{onBack:goHome,title:`Carrito (${cartCount} ${cartCount===1?'producto':'productos'})`}),
+    cart.length===0
+      ? h('div',{style:{textAlign:'center',padding:'3rem 1rem'}},
+          h(Icon,{name:'shopping-cart-off',sz:52,style:{color:'#ddd',display:'block',margin:'0 auto 16px'}}),
+          h('div',{style:{fontSize:16,fontWeight:700,marginBottom:6}},'Tu carrito está vacío'),
+          h('div',{style:{fontSize:13,color:GRAY,marginBottom:20}},'Agrega productos desde el menú'),
+          h(Btn,{onClick:goHome,full:false},h(Icon,{name:'arrow-left',sz:18}),'Ver productos')
+        )
+      : h('div',null,
+          /* item list */
+          cart.map(item=>h('div',{key:item.id,style:{display:'flex',alignItems:'center',gap:12,padding:'12px 0',borderBottom:'1px solid #f5f5f5'}},
+            h('div',{style:{width:66,height:66,borderRadius:10,background:'#f5f5f5',overflow:'hidden',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}},
+              h(ProductImg,{src:item.imagen,id:item.id,imgErrs,setImgErrs,h:66,icon:fallback(item.categoria)})
+            ),
+            h('div',{style:{flex:1,minWidth:0}},
+              h('div',{style:{fontSize:14,fontWeight:700,marginBottom:2,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},item.producto),
+              h('div',{style:{fontSize:13,color:GRAY,marginBottom:4}},mxn(item.precio),' c/u'),
+              h('div',{style:{fontSize:15,fontWeight:800,color:B}},mxn(item.precio*item.qty))
+            ),
+            h('div',{style:{display:'flex',alignItems:'center',gap:0,border:'1.5px solid #e8e8e8',borderRadius:10,overflow:'hidden',flexShrink:0}},
+              h('button',{onClick:()=>updateQty(item.id,item.qty-1),style:{width:36,height:36,background:'none',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:item.qty===1?'#C62828':'#555'}},
+                h(Icon,{name:item.qty===1?'trash':'minus',sz:15})),
+              h('span',{style:{width:32,textAlign:'center',fontSize:15,fontWeight:700}},item.qty),
+              h('button',{onClick:()=>updateQty(item.id,item.qty+1),style:{width:36,height:36,background:'none',border:'none',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#333'}},
+                h(Icon,{name:'plus',sz:15}))
+            )
+          )),
+          /* total + checkout */
+          h('div',{style:{marginTop:20,background:'#fafafa',borderRadius:14,padding:'16px'}},
+            h('div',{style:{display:'flex',justifyContent:'space-between',fontSize:13,color:GRAY,marginBottom:6}},
+              h('span',null,`${cartCount} producto${cartCount!==1?'s':''}`),
+              h('span',null,mxn(cartTotal))
+            ),
+            h('div',{style:{display:'flex',justifyContent:'space-between',fontSize:20,fontWeight:800,marginBottom:18,paddingTop:10,borderTop:'1px solid #ebebeb'}},
+              h('span',null,'Total'),
+              h('span',{style:{color:B}},mxn(cartTotal))
+            ),
+            h(Btn,{onClick:()=>{setBuyForm({nombre:'',pago:'efectivo',direccion:''});setBuyErrs({});setScreen('checkout');}},
+              h(Icon,{name:'credit-card',sz:19}),'Proceder al pago')
+          ),
+          /* clear cart */
+          h('div',{style:{textAlign:'center',marginTop:12}},
+            h('button',{onClick:()=>{clearCart();goHome();},style:{background:'none',border:'none',color:GRAY,fontSize:13,cursor:'pointer',textDecoration:'underline'}},
+              'Vaciar carrito y volver')
+          )
+        )
+  );
+
+  /* ════════════════════════════════════════
+     SCREEN: CHECKOUT
+  ════════════════════════════════════════ */
+  if(screen==='checkout') return h('div',{style:{paddingBottom:32}},
+    h(BackBar,{onBack:()=>setScreen('cart'),title:'Datos de entrega'}),
+    /* order summary */
+    h('div',{style:{background:'#fafafa',borderRadius:12,padding:'14px 16px',marginBottom:22}},
+      h('div',{style:{fontSize:11,fontWeight:700,color:GRAY,textTransform:'uppercase',letterSpacing:.8,marginBottom:10}},'Resumen del pedido'),
+      cart.map(i=>h('div',{key:i.id,style:{display:'flex',justifyContent:'space-between',fontSize:13,marginBottom:5,color:'#444'}},
+        h('span',null,i.producto,' × ',i.qty),
+        h('span',{style:{fontWeight:600}},mxn(i.precio*i.qty))
+      )),
+      h('div',{style:{borderTop:'1px solid #ebebeb',paddingTop:10,marginTop:6,display:'flex',justifyContent:'space-between',fontSize:17,fontWeight:800}},
+        h('span',null,'Total'),h('span',{style:{color:B}},mxn(cartTotal))
       )
     ),
-    h('div', { style:{ display:'flex', flexDirection:'column', gap:18 } },
-      h(Field, { label:'Nombre completo', icon:'user', err:buyErrs.nombre },
-        h('input', { type:'text', value:buyForm.nombre, onChange:e => bf('nombre',e.target.value), placeholder:'Escribe tu nombre...' })
+    h('div',{style:{display:'flex',flexDirection:'column',gap:18}},
+      h(Field,{label:'Nombre completo',icon:'user',err:buyErrs.nombre},
+        h('input',{type:'text',value:buyForm.nombre,onChange:e=>bf('nombre',e.target.value),placeholder:'Escribe tu nombre...'})
       ),
-      h('div', null,
-        h('label', { style:{ fontSize:13, fontWeight:600, color:GRAY, display:'block', marginBottom:10 } },
-          h(Icon, { name:'wallet', sz:14, style:{ verticalAlign:-2, marginRight:4 } }), 'Forma de pago'),
-        h('div', { style:{ display:'flex', gap:10 } },
-          [{ k:'efectivo', label:'Efectivo', icon:'cash' },{ k:'transferencia', label:'Transferencia', icon:'credit-card' }].map(opt =>
-            h('div', {
-              key:opt.k, onClick:() => setBuyForm(f => ({ ...f, pago:opt.k })),
-              style:{ flex:1, padding:'14px 8px', borderRadius:12, border:buyForm.pago===opt.k?`2.5px solid ${B}`:'1.5px solid #e8e8e8', background:buyForm.pago===opt.k?BL:'#fff', cursor:'pointer', textAlign:'center' },
-            },
-              h(Icon, { name:opt.icon, sz:24, style:{ display:'block', margin:'0 auto 6px', color:buyForm.pago===opt.k?B:GRAY } }),
-              h('span', { style:{ fontSize:13, fontWeight:buyForm.pago===opt.k?700:400, color:buyForm.pago===opt.k?BD:'#555' } }, opt.label)
+      h('div',null,
+        h('label',{style:{fontSize:13,fontWeight:600,color:GRAY,display:'block',marginBottom:10}},
+          h(Icon,{name:'wallet',sz:14,style:{verticalAlign:-2,marginRight:4}}),' Forma de pago'),
+        h('div',{style:{display:'flex',gap:10}},
+          [{k:'efectivo',label:'Efectivo',icon:'cash'},{k:'transferencia',label:'Transferencia',icon:'credit-card'}].map(opt=>
+            h('div',{key:opt.k,onClick:()=>setBuyForm(f=>({...f,pago:opt.k})),style:{flex:1,padding:'14px 8px',borderRadius:12,border:buyForm.pago===opt.k?`2.5px solid ${B}`:'1.5px solid #e8e8e8',background:buyForm.pago===opt.k?BL:'#fff',cursor:'pointer',textAlign:'center'}},
+              h(Icon,{name:opt.icon,sz:24,style:{display:'block',margin:'0 auto 6px',color:buyForm.pago===opt.k?B:GRAY}}),
+              h('span',{style:{fontSize:13,fontWeight:buyForm.pago===opt.k?700:400,color:buyForm.pago===opt.k?BD:'#555'}},opt.label)
             )
           )
         )
       ),
-      h(Field, { label:'Dirección de entrega', icon:'map-pin', err:buyErrs.direccion },
-        h('textarea', { value:buyForm.direccion, onChange:e => bf('direccion',e.target.value), placeholder:'Calle y número, colonia, ciudad...', rows:3 })
+      h(Field,{label:'Dirección de entrega',icon:'map-pin',err:buyErrs.direccion},
+        h('textarea',{value:buyForm.direccion,onChange:e=>bf('direccion',e.target.value),placeholder:'Calle y número, colonia, ciudad...',rows:3})
       )
     ),
-    h('div', { style:{ marginTop:24 } },
-      h(Btn, { onClick:submitOrder }, h(Icon, { name:'check', sz:19 }), 'Confirmar pedido')
+    h('div',{style:{marginTop:24}},
+      h(Btn,{onClick:submitOrder},h(Icon,{name:'check',sz:19}),'Confirmar pedido')
     )
   );
 
-  /* ════════════════════════
-     ORDER DONE
-  ════════════════════════ */
-  if (screen === 'done') {
-    const o = orders[0];
-    return h('div', { style:{ paddingBottom:32, textAlign:'center' } },
-      h('div', { style:{ padding:'2.5rem 0 2rem' } },
-        h('div', { style:{ width:80, height:80, borderRadius:'50%', background:'#E8F5E9', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' } },
-          h(Icon, { name:'check', sz:42, style:{ color:'#2E7D32' } })),
-        h('div', { style:{ fontSize:26, fontWeight:800, marginBottom:8 } }, '¡Pedido confirmado!'),
-        h('p', { style:{ fontSize:14, color:GRAY, marginBottom:26, lineHeight:1.7 } }, 'Nos pondremos en contacto para coordinar la entrega.'),
-        o && h('div', { style:{ background:'#fafafa', borderRadius:14, padding:'16px', textAlign:'left', marginBottom:26 } },
-          h('div', { style:{ fontSize:11, fontWeight:700, color:GRAY, textTransform:'uppercase', letterSpacing:.8, marginBottom:10 } }, 'Detalles del pedido'),
-          [['Producto',`${o.producto} × ${o.cant}`],['Total',mxn(o.total)],['Nombre',o.nombre],['Pago',o.pago==='efectivo'?'Efectivo':'Transferencia'],['Dirección',o.direccion]].map(([k,v]) =>
-            h('div', { key:k, style:{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'7px 0', borderBottom:'1px solid #ebebeb' } },
-              h('span', { style:{ color:GRAY, flexShrink:0, marginRight:12, fontWeight:500 } }, k),
-              h('span', { style:{ fontWeight:700, textAlign:'right', wordBreak:'break-word', maxWidth:'58%' } }, v)
-            )
-          )
-        ),
-        h(Btn, { onClick:goHome, full:false }, h(Icon, { name:'home', sz:18 }), 'Volver al inicio')
-      )
-    );
-  }
-
-  /* ════════════════════════
-     ADMIN LOGIN
-  ════════════════════════ */
-  if (screen === 'adminLogin') return h('div', { style:{ paddingBottom:32 } },
-    h(BackBar, { onBack:goHome, title:'Acceso administrador' }),
-    h('div', { style:{ maxWidth:300, margin:'2rem auto', textAlign:'center' } },
-      h('div', { style:{ width:70, height:70, borderRadius:'50%', background:'#fafafa', border:'1.5px solid #f0f0f0', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 18px' } },
-        h(Icon, { name:'lock', sz:34, style:{ color:GRAY } })),
-      h('div', { style:{ fontSize:20, fontWeight:800, marginBottom:6 } }, 'Panel de administrador'),
-      h('p', { style:{ fontSize:13, color:GRAY, margin:'0 0 26px', lineHeight:1.6 } }, 'Ingresa el PIN de 4 dígitos.'),
-      h('input', {
-        ref:pinRef, type:'password', value:pin,
-        onChange:e => { setPin(e.target.value.slice(0,4)); setPinErr(false); },
-        onKeyDown:e => e.key==='Enter' && doLogin(),
-        placeholder:'••••', maxLength:4, inputMode:'numeric',
-        style:{ textAlign:'center', fontSize:34, letterSpacing:18, marginBottom:14, fontWeight:700 },
-      }),
-      pinErr && h('p', { style:{ fontSize:13, color:'#C62828', margin:'0 0 14px', fontWeight:600 } },
-        h(Icon, { name:'alert-circle', sz:14, style:{ verticalAlign:-2, marginRight:3 } }), 'PIN incorrecto. Inténtalo de nuevo.'),
-      h(Btn, { onClick:doLogin }, h(Icon, { name:'login', sz:18 }), 'Ingresar')
+  /* ════════════════════════════════════════
+     SCREEN: DONE
+  ════════════════════════════════════════ */
+  if(screen==='done') return h('div',{style:{paddingBottom:32,textAlign:'center'}},
+    h('div',{style:{padding:'2.5rem 0 2rem'}},
+      h('div',{style:{width:80,height:80,borderRadius:'50%',background:'#E8F5E9',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 20px',animation:'popIn .5s ease both'}},
+        h(Icon,{name:'check',sz:42,style:{color:'#2E7D32'}})),
+      h('div',{style:{fontSize:26,fontWeight:800,marginBottom:8}},'¡Pedido confirmado!'),
+      h('p',{style:{fontSize:14,color:GRAY,marginBottom:26,lineHeight:1.7}},'Gracias por tu compra. Nos comunicaremos\npara coordinar la entrega.'),
+      CFG.whatsapp && h('div',{style:{background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:12,padding:'12px 16px',marginBottom:20,fontSize:13,color:'#166534'}},
+        h(Icon,{name:'brand-whatsapp',sz:16,style:{verticalAlign:-2,marginRight:6,color:'#16A34A'}}),'El resumen fue enviado por WhatsApp'),
+      h(Btn,{onClick:goHome,full:false},h(Icon,{name:'home',sz:18}),'Volver al inicio')
     )
   );
 
-  /* ════════════════════════
-     ADMIN DASHBOARD
-  ════════════════════════ */
-  if (screen === 'admin') {
+  /* ════════════════════════════════════════
+     SCREEN: ADMIN LOGIN
+  ════════════════════════════════════════ */
+  if(screen==='adminLogin') return h('div',{style:{paddingBottom:32}},
+    h(BackBar,{onBack:goHome,title:'Acceso administrador'}),
+    h('div',{style:{maxWidth:300,margin:'2rem auto',textAlign:'center'}},
+      h('div',{style:{width:70,height:70,borderRadius:'50%',background:'#fafafa',border:'1.5px solid #f0f0f0',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 18px'}},
+        h(Icon,{name:'lock',sz:34,style:{color:GRAY}})),
+      h('div',{style:{fontSize:20,fontWeight:800,marginBottom:6}},'Panel de administrador'),
+      h('p',{style:{fontSize:13,color:GRAY,margin:'0 0 26px',lineHeight:1.6}},'Ingresa el PIN para continuar.'),
+      h('input',{ref:pinRef,type:'password',value:pin,onChange:e=>{setPin(e.target.value.slice(0,4));setPinErr(false);},onKeyDown:e=>e.key==='Enter'&&doLogin(),placeholder:'••••',maxLength:4,inputMode:'numeric',style:{textAlign:'center',fontSize:34,letterSpacing:18,marginBottom:14,fontWeight:700}}),
+      pinErr && h('p',{style:{fontSize:13,color:'#C62828',margin:'0 0 14px',fontWeight:600}},
+        h(Icon,{name:'alert-circle',sz:14,style:{verticalAlign:-2,marginRight:3}}),' PIN incorrecto.'),
+      h(Btn,{onClick:doLogin},h(Icon,{name:'login',sz:18}),'Ingresar')
+    )
+  );
 
-    /* ─ Formulario agregar / editar producto ─ */
-    if (editId !== null) {
-      const isNew = editId === 'new';
-      return h('div', { style:{ paddingBottom:32 } },
-        h(BackBar, { onBack:cancelEdit, title:isNew ? 'Nuevo producto' : 'Editar producto' }),
+  /* ════════════════════════════════════════
+     SCREEN: ADMIN DASHBOARD
+  ════════════════════════════════════════ */
+  if(screen==='admin'){
 
-        /* ── Selector de imagen desde galería ── */
-        h('div', { style:{ marginBottom:20 } },
-
-          /* Área de preview / toque para cambiar */
-          h('div', {
-            onClick: pickImage,
-            style:{
-              height:200, borderRadius:14, overflow:'hidden',
-              background:'#f5f5f5', border:'2px dashed #e0e0e0',
-              display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
-              cursor:'pointer', position:'relative',
-            }
-          },
-            /* input file oculto */
-            h('input', {
-              ref:imgInputRef, type:'file', accept:'image/*',
-              onChange:onImgPicked, style:{ display:'none' },
-            }),
-
-            /* Estados: cargando / con imagen / sin imagen */
+    /* ─ Edit/Add product form ─ */
+    if(editId!==null){
+      const isNew=editId==='new';
+      return h('div',{style:{paddingBottom:32}},
+        h(BackBar,{onBack:cancelEdit,title:isNew?'Nuevo producto':'Editar producto'}),
+        /* image picker */
+        h('div',{style:{marginBottom:20}},
+          h('div',{onClick:pickImage,style:{height:200,borderRadius:14,overflow:'hidden',background:'#f5f5f5',border:'2px dashed #e0e0e0',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'pointer',position:'relative'}},
+            h('input',{ref:imgInputRef,type:'file',accept:'image/*',onChange:onImgPicked,style:{display:'none'}}),
             imgLoading
-              ? h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 } },
-                  h('div', { style:{ width:36, height:36, borderRadius:'50%', border:`3px solid ${B}`, borderTopColor:'transparent', animation:'spin .8s linear infinite' } }),
-                  h('span', { style:{ fontSize:13, color:GRAY } }, 'Cargando imagen...')
+              ? h('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:10}},
+                  h('div',{style:{width:36,height:36,borderRadius:'50%',border:`3px solid ${B}`,borderTopColor:'transparent',animation:'spin .8s linear infinite'}}),
+                  h('span',{style:{fontSize:13,color:GRAY}},'Subiendo imagen...')
                 )
               : prodForm.imagen
-                ? h('img', { key:prodForm.imagen.slice(-30), src:prodForm.imagen, alt:'Vista previa', style:{ width:'100%', height:'100%', objectFit:'cover' } })
-                : h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 } },
-                    h('div', { style:{ width:60, height:60, borderRadius:'50%', background:BL, display:'flex', alignItems:'center', justifyContent:'center' } },
-                      h(Icon, { name:'photo-plus', sz:30, style:{ color:B } })),
-                    h('span', { style:{ fontSize:14, fontWeight:700, color:B } }, 'Seleccionar imagen'),
-                    h('span', { style:{ fontSize:12, color:'#aaa' } }, 'Toca para abrir tu galería')
+                ? h('img',{key:prodForm.imagen.slice(-30),src:prodForm.imagen,alt:'Vista previa',style:{width:'100%',height:'100%',objectFit:'cover'}})
+                : h('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:10}},
+                    h('div',{style:{width:60,height:60,borderRadius:'50%',background:BL,display:'flex',alignItems:'center',justifyContent:'center'}},
+                      h(Icon,{name:'photo-plus',sz:30,style:{color:B}})),
+                    h('span',{style:{fontSize:14,fontWeight:700,color:B}},'Seleccionar imagen'),
+                    h('span',{style:{fontSize:12,color:'#aaa'}},'Toca para abrir tu galería')
                   ),
-
-            /* Overlay "Cambiar" cuando ya hay foto */
-            (!imgLoading && prodForm.imagen) && h('div', {
-              style:{ position:'absolute', bottom:0, left:0, right:0, background:'rgba(0,0,0,.45)', padding:'8px', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }
-            },
-              h(Icon, { name:'pencil', sz:14, style:{ color:'#fff' } }),
-              h('span', { style:{ fontSize:13, color:'#fff', fontWeight:600 } }, 'Cambiar imagen')
+            !imgLoading && prodForm.imagen && h('div',{style:{position:'absolute',bottom:0,left:0,right:0,background:'rgba(0,0,0,.42)',padding:'8px',display:'flex',alignItems:'center',justifyContent:'center',gap:6}},
+              h(Icon,{name:'pencil',sz:14,style:{color:'#fff'}}),
+              h('span',{style:{fontSize:13,color:'#fff',fontWeight:600}},'Cambiar imagen')
             )
           ),
-
-          /* Botones secundarios */
-          h('div', { style:{ display:'flex', gap:8, marginTop:10 } },
-            h('button', {
-              onClick:pickImage,
-              style:{ flex:1, padding:'11px', borderRadius:10, border:`1.5px solid ${B}`, background:BL, color:BD, fontWeight:700, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 },
-            }, h(Icon, { name:'photo', sz:16 }), 'Abrir galería'),
-
-            prodForm.imagen && h('button', {
-              onClick: e => { e.stopPropagation(); setProdForm(f => ({ ...f, imagen:'' })); },
-              style:{ padding:'11px 14px', borderRadius:10, border:'1.5px solid #e0e0e0', background:'#fff', color:GRAY, fontWeight:600, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:5 },
-            }, h(Icon, { name:'x', sz:15 }), 'Quitar')
-          )
-        ),
-
-        /* ── Campos de texto ── */
-        h('div', { style:{ display:'flex', flexDirection:'column', gap:16 } },
-
-          h(Field, { label:'Nombre del producto', icon:'tag', err:prodErrs.producto },
-            h('input', { type:'text', value:prodForm.producto, onChange:e => pf('producto',e.target.value), placeholder:'Ej. Frape de chocolate' })
+          h('div',{style:{display:'flex',gap:8,marginTop:10}},
+            h('button',{onClick:pickImage,style:{flex:1,padding:'11px',borderRadius:10,border:`1.5px solid ${B}`,background:BL,color:BD,fontWeight:700,fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}},
+              h(Icon,{name:'photo',sz:16}),' Abrir galería'),
+            prodForm.imagen && h('button',{onClick:e=>{e.stopPropagation();setProdForm(f=>({...f,imagen:''}));},style:{padding:'11px 14px',borderRadius:10,border:'1.5px solid #e0e0e0',background:'#fff',color:GRAY,fontWeight:600,fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5}},
+              h(Icon,{name:'x',sz:15}),' Quitar')
           ),
-
-          h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 } },
-            h(Field, { label:'Categoría', icon:'layout-grid', err:prodErrs.categoria },
-              h('div', null,
-                h('input', { type:'text', list:'admin-cats', value:prodForm.categoria, onChange:e => pf('categoria',e.target.value), placeholder:'Ej. Frape' }),
-                h('datalist', { id:'admin-cats' }, adminCats.map(c => h('option', { key:c, value:c })))
+          sb && h('div',{style:{fontSize:11,color:'#2E7D32',marginTop:6,display:'flex',alignItems:'center',gap:4}},
+            h(Icon,{name:'cloud-upload',sz:12}),'Las imágenes se suben a Supabase Storage')
+        ),
+        /* fields */
+        h('div',{style:{display:'flex',flexDirection:'column',gap:16}},
+          h(Field,{label:'Nombre del producto',icon:'tag',err:prodErrs.producto},
+            h('input',{type:'text',value:prodForm.producto,onChange:e=>pf('producto',e.target.value),placeholder:'Ej. Frape de chocolate'})
+          ),
+          h('div',{style:{display:'grid',gridTemplateColumns:'1fr 1fr',gap:12}},
+            h(Field,{label:'Categoría',icon:'layout-grid',err:prodErrs.categoria},
+              h('div',null,
+                h('input',{type:'text',list:'adm-cats',value:prodForm.categoria,onChange:e=>pf('categoria',e.target.value),placeholder:'Ej. Frape'}),
+                h('datalist',{id:'adm-cats'},adminCats.map(c=>h('option',{key:c,value:c})))
               )
             ),
-            h(Field, { label:'Precio (MXN)', icon:'cash', err:prodErrs.precio },
-              h('input', { type:'number', value:prodForm.precio, onChange:e => pf('precio',e.target.value), placeholder:'35', min:1, step:1 })
+            h(Field,{label:'Precio (MXN)',icon:'cash',err:prodErrs.precio},
+              h('input',{type:'number',value:prodForm.precio,onChange:e=>pf('precio',e.target.value),placeholder:'35',min:1,step:1})
             )
           ),
-
-          h(Field, { label:'Descripción / Ingredientes', icon:'align-left', err:prodErrs.descripcion },
-            h('textarea', { value:prodForm.descripcion, onChange:e => pf('descripcion',e.target.value), placeholder:'Describe el producto, ingredientes, presentación...', rows:4 })
+          h(Field,{label:'Descripción / Ingredientes',icon:'align-left',err:prodErrs.descripcion},
+            h('textarea',{value:prodForm.descripcion,onChange:e=>pf('descripcion',e.target.value),placeholder:'Describe el producto...',rows:4})
           )
         ),
-
-        /* ── Botones de acción ── */
-        h('div', { style:{ display:'flex', gap:10, marginTop:24 } },
-          h(Btn, { onClick:cancelEdit, color:'#fff', textColor:GRAY, border:'1.5px solid #e0e0e0', full:false }, 'Cancelar'),
-          h('div', { style:{ flex:1 } },
-            h(Btn, { onClick:saveProd },
-              h(Icon, { name:isNew?'plus':'device-floppy', sz:18 }),
-              isNew ? 'Agregar producto' : 'Guardar cambios'
-            )
+        /* action buttons */
+        h('div',{style:{display:'flex',gap:10,marginTop:24}},
+          h(Btn,{onClick:cancelEdit,bg:'#fff',fg:GRAY,border:'1.5px solid #e0e0e0',full:false},'Cancelar'),
+          h('div',{style:{flex:1}},
+            h(Btn,{onClick:saveProd,disabled:savingProd},
+              savingProd ? h('div',{style:{width:18,height:18,borderRadius:'50%',border:'2.5px solid rgba(255,255,255,.4)',borderTopColor:'#fff',animation:'spin .7s linear infinite'}})
+                         : h(Icon,{name:isNew?'plus':'device-floppy',sz:18}),
+              savingProd?'Guardando...':(isNew?'Agregar producto':'Guardar cambios'))
           )
         )
-      ); // end edit form return
+      );
     }
 
-    /* ─ Confirmación de eliminar ─ */
-    if (delId !== null) {
-      const dp = products.find(p => p.id === delId);
-      return h('div', { style:{ paddingBottom:32 } },
-        h(BackBar, { onBack:() => setDelId(null), title:'Eliminar producto' }),
-        h('div', { style:{ padding:'2rem 0', textAlign:'center' } },
-          h('div', { style:{ width:68, height:68, borderRadius:'50%', background:'#FEECEC', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 18px' } },
-            h(Icon, { name:'trash', sz:34, style:{ color:'#A32D2D' } })),
-          h('div', { style:{ fontSize:20, fontWeight:800, marginBottom:10 } }, 'Eliminar producto'),
-          h('p', { style:{ fontSize:14, color:GRAY, margin:'0 auto 28px', maxWidth:300, lineHeight:1.7 } },
-            '¿Seguro que deseas eliminar ', h('strong', null, dp?.producto), '? Esta acción no se puede deshacer.'),
-          h('div', { style:{ display:'flex', gap:12 } },
-            h(Btn, { onClick:() => setDelId(null), color:'#fff', textColor:GRAY, border:'1.5px solid #e0e0e0', full:false }, 'Cancelar'),
-            h('div', { style:{ flex:1 } },
-              h(Btn, { onClick:deleteProd, color:'#A32D2D' }, h(Icon, { name:'trash', sz:18 }), 'Sí, eliminar')
+    /* ─ Delete confirmation ─ */
+    if(delId!==null){
+      const dp=products.find(p=>p.id===delId);
+      return h('div',{style:{paddingBottom:32}},
+        h(BackBar,{onBack:()=>setDelId(null),title:'Eliminar producto'}),
+        h('div',{style:{padding:'2rem 0',textAlign:'center'}},
+          h('div',{style:{width:68,height:68,borderRadius:'50%',background:'#FEECEC',display:'flex',alignItems:'center',justifyContent:'center',margin:'0 auto 18px'}},
+            h(Icon,{name:'trash',sz:34,style:{color:'#A32D2D'}})),
+          h('div',{style:{fontSize:20,fontWeight:800,marginBottom:10}},'Eliminar producto'),
+          h('p',{style:{fontSize:14,color:GRAY,margin:'0 auto 28px',maxWidth:300,lineHeight:1.7}},
+            '¿Seguro que deseas eliminar ',h('strong',null,dp?.producto),'? No se puede deshacer.'),
+          h('div',{style:{display:'flex',gap:12}},
+            h(Btn,{onClick:()=>setDelId(null),bg:'#fff',fg:GRAY,border:'1.5px solid #e0e0e0',full:false},'Cancelar'),
+            h('div',{style:{flex:1}},h(Btn,{onClick:deleteProd,bg:'#A32D2D'},h(Icon,{name:'trash',sz:18}),'Sí, eliminar'))
+          )
+        )
+      );
+    }
+
+    /* ─ Status change modal ─ */
+    if(statusSel!==null){
+      return h('div',{style:{paddingBottom:32}},
+        h(BackBar,{onBack:()=>setStatusSel(null),title:'Cambiar estado'}),
+        h('div',{style:{display:'flex',flexDirection:'column',gap:10,marginTop:8}},
+          Object.keys(STATUS_LABELS).map(st=>
+            h('button',{key:st,onClick:()=>updateOrderStatus(statusSel,st),style:{padding:'14px 16px',borderRadius:12,border:'1.5px solid #e8e8e8',background:'#fff',cursor:'pointer',display:'flex',alignItems:'center',gap:12,textAlign:'left',fontSize:14,fontWeight:600}},
+              h('div',{style:{width:12,height:12,borderRadius:'50%',background:{nuevo:'#F59E0B',en_proceso:'#3B82F6',entregado:'#10B981',cancelado:'#EF4444'}[st]}}),
+              STATUS_LABELS[st]
             )
           )
         )
       );
     }
 
-    /* ─ Vista principal del admin ─ */
-    return h('div', { style:{ paddingBottom:32 } },
-
-      /* Header */
-      h('div', { style:{ display:'flex', alignItems:'center', gap:12, padding:'16px 0', borderBottom:'1px solid #f0f0f0', marginBottom:18 } },
-        h('div', { style:{ width:38, height:38, borderRadius:10, background:B, display:'flex', alignItems:'center', justifyContent:'center' } },
-          h(Icon, { name:'shield', sz:20, style:{ color:'#fff' } })),
-        h('span', { style:{ fontSize:20, fontWeight:800, flex:1 } }, 'Panel Admin'),
-        h('button', {
-          onClick:goHome,
-          style:{ fontSize:13, padding:'7px 14px', borderRadius:9, border:'1.5px solid #e8e8e8', background:'none', cursor:'pointer', color:GRAY, fontWeight:500 },
-        }, 'Salir')
+    /* ─ Admin main view ─ */
+    return h('div',{style:{paddingBottom:32}},
+      /* header */
+      h('div',{style:{display:'flex',alignItems:'center',gap:12,padding:'16px 0',borderBottom:'1px solid #f0f0f0',marginBottom:18}},
+        h('div',{style:{width:38,height:38,borderRadius:10,background:B,display:'flex',alignItems:'center',justifyContent:'center'}},
+          h(Icon,{name:'shield',sz:20,style:{color:'#fff'}})),
+        h('span',{style:{fontSize:20,fontWeight:800,flex:1}},'Panel Admin'),
+        sb && h('div',{style:{fontSize:11,color:'#2E7D32',background:'#F0FDF4',border:'1px solid #BBF7D0',borderRadius:6,padding:'4px 8px',display:'flex',alignItems:'center',gap:4}},
+          h(Icon,{name:'cloud',sz:11}),'En línea'),
+        h('button',{onClick:goHome,style:{fontSize:13,padding:'7px 14px',borderRadius:9,border:'1.5px solid #e8e8e8',background:'none',cursor:'pointer',color:GRAY,fontWeight:500,marginLeft:6}},'Salir')
       ),
-
-      /* Stats */
-      h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:20 } },
-        [
-          { label:'Pedidos',   val:orders.length,                                       icon:'receipt' },
-          { label:'Ventas',    val:mxn(orders.reduce((s,o) => s+o.total, 0)),            icon:'cash'    },
-          { label:'Productos', val:products.length,                                      icon:'package' },
-        ].map(s => h('div', { key:s.label, style:{ background:'#fafafa', borderRadius:12, padding:'11px 12px', border:'1px solid #f0f0f0' } },
-          h('div', { style:{ fontSize:11, color:GRAY, marginBottom:4, fontWeight:500 } },
-            h(Icon, { name:s.icon, sz:12, style:{ verticalAlign:-1, marginRight:3 } }), s.label),
-          h('div', { style:{ fontSize:19, fontWeight:800 } }, s.val)
-        ))
+      /* stats */
+      h('div',{style:{display:'grid',gridTemplateColumns:'repeat(3,1fr)',gap:10,marginBottom:20}},
+        [{label:'Pedidos',val:orders.length,icon:'receipt'},{label:'Ventas',val:mxn(orders.reduce((s,o)=>s+(o.total||0),0)),icon:'cash'},{label:'Productos',val:products.length,icon:'package'}]
+          .map(s=>h('div',{key:s.label,style:{background:'#fafafa',borderRadius:12,padding:'11px 12px',border:'1px solid #f0f0f0'}},
+            h('div',{style:{fontSize:11,color:GRAY,marginBottom:4,fontWeight:500}},h(Icon,{name:s.icon,sz:12,style:{verticalAlign:-1,marginRight:3}}),s.label),
+            h('div',{style:{fontSize:19,fontWeight:800}},s.val)
+          ))
       ),
-
-      /* Tabs */
-      h('div', { style:{ display:'flex', border:'1.5px solid #ebebeb', borderRadius:12, overflow:'hidden', marginBottom:18 } },
-        [{ k:'pedidos', label:'Pedidos', icon:'receipt' },{ k:'productos', label:'Catálogo', icon:'package' }].map(t =>
-          h('button', {
-            key:t.k, onClick:() => setAdminTab(t.k),
-            style:{ flex:1, padding:'12px', background:adminTab===t.k?B:'#fff', color:adminTab===t.k?'#fff':GRAY, border:'none', cursor:'pointer', fontSize:14, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:7 },
-          }, h(Icon, { name:t.icon, sz:16 }), t.label)
+      /* tabs */
+      h('div',{style:{display:'flex',border:'1.5px solid #ebebeb',borderRadius:12,overflow:'hidden',marginBottom:18}},
+        [{k:'pedidos',label:'Pedidos',icon:'receipt'},{k:'productos',label:'Catálogo',icon:'package'}].map(t=>
+          h('button',{key:t.k,onClick:()=>setAdminTab(t.k),style:{flex:1,padding:'12px',background:adminTab===t.k?B:'#fff',color:adminTab===t.k?'#fff':GRAY,border:'none',cursor:'pointer',fontSize:14,fontWeight:700,display:'flex',alignItems:'center',justifyContent:'center',gap:7}},
+            h(Icon,{name:t.icon,sz:16}),t.label)
         )
       ),
-
-      /* Tab: Pedidos */
-      adminTab === 'pedidos' && (
-        orders.length === 0
-          ? h('div', { style:{ textAlign:'center', padding:'3rem 1rem' } },
-              h(Icon, { name:'inbox', sz:52, style:{ color:'#ddd', display:'block', margin:'0 auto 12px' } }),
-              h('div', { style:{ fontSize:15, color:GRAY } }, 'Aún no hay pedidos'))
-          : h('div', null, orders.map(o =>
-              h('div', { key:o.id, style:{ background:'#fff', border:'1px solid #efefef', borderRadius:14, padding:'13px 15px', marginBottom:10 } },
-                h('div', { style:{ display:'flex', justifyContent:'space-between', marginBottom:6 } },
-                  h('span', { style:{ fontSize:16, fontWeight:800 } }, o.nombre),
-                  h('span', { style:{ fontSize:16, fontWeight:800, color:B } }, mxn(o.total))
-                ),
-                h('div', { style:{ fontSize:13, color:GRAY, marginBottom:3 } }, h(Icon, { name:'package', sz:13, style:{ verticalAlign:-2, marginRight:4 } }), o.producto,' × ',o.cant),
-                h('div', { style:{ fontSize:13, color:GRAY, marginBottom:3 } }, h(Icon, { name:'map-pin', sz:13, style:{ verticalAlign:-2, marginRight:4 } }), o.direccion),
-                h('div', { style:{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#bbb', marginTop:8, paddingTop:8, borderTop:'1px solid #f5f5f5' } },
-                  h('span', null, h(Icon, { name:'cash', sz:12, style:{ verticalAlign:-1, marginRight:3 } }), o.pago==='efectivo'?'Efectivo':'Transferencia'),
-                  h('span', null, o.fecha)
-                )
+      /* TAB: PEDIDOS */
+      adminTab==='pedidos' && (orders.length===0
+        ? h('div',{style:{textAlign:'center',padding:'3rem 1rem'}},
+            h(Icon,{name:'inbox',sz:52,style:{color:'#ddd',display:'block',margin:'0 auto 12px'}}),
+            h('div',{style:{fontSize:15,color:GRAY}},'Aún no hay pedidos'))
+        : h('div',null,orders.map(o=>{
+            const items = Array.isArray(o.items)?o.items:[];
+            return h('div',{key:o.id,className:'fadein',style:{background:'#fff',border:'1px solid #efefef',borderRadius:14,padding:'13px 15px',marginBottom:10}},
+              h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}},
+                h('span',{style:{fontSize:16,fontWeight:800}},o.nombre),
+                h('span',{style:{fontSize:16,fontWeight:800,color:B}},mxn(o.total))
+              ),
+              /* items */
+              items.map((i,idx)=>h('div',{key:idx,style:{fontSize:13,color:'#555',marginBottom:2}},
+                h(Icon,{name:'circle-dot',sz:11,style:{verticalAlign:-1,marginRight:4,color:GRAY}}),
+                i.producto,' × ',i.qty,' — ',mxn(i.precio*i.qty)
+              )),
+              /* address + payment */
+              h('div',{style:{display:'flex',gap:12,marginTop:8,paddingTop:8,borderTop:'1px solid #f5f5f5',flexWrap:'wrap'}},
+                h('span',{style:{fontSize:12,color:GRAY}},h(Icon,{name:'map-pin',sz:12,style:{verticalAlign:-1,marginRight:3}}),o.direccion),
+                h('span',{style:{fontSize:12,color:GRAY}},h(Icon,{name:'cash',sz:12,style:{verticalAlign:-1,marginRight:3}}),o.pago==='efectivo'?'Efectivo':'Transferencia')
+              ),
+              /* status + date */
+              h('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center',marginTop:8}},
+                h('button',{onClick:()=>setStatusSel(o.id),className:`status-${o.status||'nuevo'}`,style:{fontSize:11,fontWeight:700,padding:'4px 10px',borderRadius:20,border:'none',cursor:'pointer'}},
+                  STATUS_LABELS[o.status||'nuevo'],' ▾'),
+                h('span',{style:{fontSize:11,color:'#bbb'}},o.fecha||o.created_at?.slice(0,16)?.replace('T',' '))
               )
-            ))
+            );
+          }))
       ),
-
-      /* Tab: Catálogo */
-      adminTab === 'productos' && h('div', null,
-        h('button', {
-          onClick:startNew,
-          style:{ width:'100%', padding:'13px', background:BL, color:BD, border:`2px dashed ${B}`, borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginBottom:12 },
-        }, h(Icon, { name:'plus', sz:18 }), 'Agregar nuevo producto'),
-
-        products.map(p => h('div', {
-          key:p.id,
-          style:{ background:'#fff', border:'1px solid #efefef', borderRadius:14, padding:'10px 12px', marginBottom:10, display:'flex', alignItems:'center', gap:12 },
-        },
-          h('div', { style:{ width:58, height:58, borderRadius:10, background:'#f5f5f5', overflow:'hidden', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' } },
-            h(ProductImg, { src:p.imagen, id:p.id, imgErrs, setImgErrs, height:58, icon:fallback(p.categoria) })
+      /* TAB: CATÁLOGO */
+      adminTab==='productos' && h('div',null,
+        h('button',{onClick:startNew,style:{width:'100%',padding:'13px',background:BL,color:BD,border:`2px dashed ${B}`,borderRadius:12,fontSize:14,fontWeight:700,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:8,marginBottom:12}},
+          h(Icon,{name:'plus',sz:18}),'Agregar nuevo producto'),
+        products.map(p=>h('div',{key:p.id,style:{background:'#fff',border:'1px solid #efefef',borderRadius:14,padding:'10px 12px',marginBottom:10,display:'flex',alignItems:'center',gap:12}},
+          h('div',{style:{width:58,height:58,borderRadius:10,background:'#f5f5f5',overflow:'hidden',flexShrink:0,display:'flex',alignItems:'center',justifyContent:'center'}},
+            h(ProductImg,{src:p.imagen,id:p.id,imgErrs,setImgErrs,h:58,icon:fallback(p.categoria)})
           ),
-          h('div', { style:{ flex:1, minWidth:0 } },
-            h('div', { style:{ fontSize:11, color:'#aaa', marginBottom:1 } }, p.categoria),
-            h('div', { style:{ fontSize:14, fontWeight:700, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' } }, p.producto),
-            h('div', { style:{ fontSize:14, color:B, fontWeight:800, marginTop:2 } }, mxn(p.precio))
+          h('div',{style:{flex:1,minWidth:0}},
+            h('div',{style:{fontSize:11,color:'#aaa',marginBottom:1}},p.categoria),
+            h('div',{style:{fontSize:14,fontWeight:700,whiteSpace:'nowrap',overflow:'hidden',textOverflow:'ellipsis'}},p.producto),
+            h('div',{style:{fontSize:14,color:B,fontWeight:800,marginTop:2}},mxn(p.precio))
           ),
-          h('div', { style:{ display:'flex', gap:7, flexShrink:0 } },
-            h('button', {
-              onClick:() => startEdit(p), 'aria-label':'Editar',
-              style:{ width:38, height:38, border:'1.5px solid #e0e0e0', borderRadius:9, background:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:GRAY },
-            }, h(Icon, { name:'pencil', sz:17 })),
-            h('button', {
-              onClick:() => setDelId(p.id), 'aria-label':'Eliminar',
-              style:{ width:38, height:38, border:'1.5px solid #F7C1C1', borderRadius:9, background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#A32D2D' },
-            }, h(Icon, { name:'trash', sz:17 }))
+          h('div',{style:{display:'flex',gap:7,flexShrink:0}},
+            h('button',{onClick:()=>startEdit(p),'aria-label':'Editar',style:{width:38,height:38,border:'1.5px solid #e0e0e0',borderRadius:9,background:'#fff',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:GRAY}},h(Icon,{name:'pencil',sz:17})),
+            h('button',{onClick:()=>setDelId(p.id),'aria-label':'Eliminar',style:{width:38,height:38,border:'1.5px solid #F7C1C1',borderRadius:9,background:'#FFF5F5',cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',color:'#A32D2D'}},h(Icon,{name:'trash',sz:17}))
           )
         ))
       )
-    ); // end admin main return
-  } // end admin screen
+    );
+  }
 
   return null;
 }
@@ -623,9 +783,8 @@ function App() {
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(h(App));
 
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
-}
+if('serviceWorker' in navigator)
+  window.addEventListener('load', ()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
 </script>
 </body>
 </html>
