@@ -1,0 +1,22 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <rect width="512" height="512" rx="90" fill="#E8620A"/>
+  <!-- Snowflake body -->
+  <line x1="256" y1="100" x2="256" y2="412" stroke="white" stroke-width="28" stroke-linecap="round"/>
+  <line x1="100" y1="256" x2="412" y2="256" stroke="white" stroke-width="28" stroke-linecap="round"/>
+  <line x1="148" y1="148" x2="364" y2="364" stroke="white" stroke-width="28" stroke-linecap="round"/>
+  <line x1="364" y1="148" x2="148" y2="364" stroke="white" stroke-width="28" stroke-linecap="round"/>
+  <!-- Branch tips (top) -->
+  <line x1="256" y1="130" x2="220" y2="96" stroke="white" stroke-width="18" stroke-linecap="round"/>
+  <line x1="256" y1="130" x2="292" y2="96" stroke="white" stroke-width="18" stroke-linecap="round"/>
+  <!-- Branch tips (bottom) -->
+  <line x1="256" y1="382" x2="220" y2="416" stroke="white" stroke-width="18" stroke-linecap="round"/>
+  <line x1="256" y1="382" x2="292" y2="416" stroke="white" stroke-width="18" stroke-linecap="round"/>
+  <!-- Branch tips (left) -->
+  <line x1="130" y1="256" x2="96" y2="220" stroke="white" stroke-width="18" stroke-linecap="round"/>
+  <line x1="130" y1="256" x2="96" y2="292" stroke="white" stroke-width="18" stroke-linecap="round"/>
+  <!-- Branch tips (right) -->
+  <line x1="382" y1="256" x2="416" y2="220" stroke="white" stroke-width="18" stroke-linecap="round"/>
+  <line x1="382" y1="256" x2="416" y2="292" stroke="white" stroke-width="18" stroke-linecap="round"/>
+  <!-- Center dot -->
+  <circle cx="256" cy="256" r="22" fill="white"/>
+</svg>
