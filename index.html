@@ -79,6 +79,8 @@
     ::-webkit-scrollbar { width: 0; height: 0; }
 
     .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
+
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -264,7 +266,9 @@ function App() {
   const [prodForm,  setProdForm]  = useState(EMPTY_PROD);
   const [prodErrs,  setProdErrs]  = useState({});
   const [delId,     setDelId]     = useState(null);
-  const pinRef = useRef(null);
+  const [imgLoading, setImgLoading] = useState(false);
+  const pinRef      = useRef(null);
+  const imgInputRef = useRef(null);
 
   /* persist */
   useEffect(() => store.set('gomix_products', products), [products]);
@@ -358,12 +362,31 @@ function App() {
   const pf = (key, val) => {
     setProdForm(f => ({ ...f, [key]: val }));
     setProdErrs(e => ({ ...e, [key]: '' }));
-    // Al cambiar la imagen, limpiar el error previo para que se muestre la nueva
     if (key === 'imagen' && editId && editId !== 'new') {
       setImgErrs(e => ({ ...e, [editId]: false }));
     }
   };
   const bf = (key, val) => { setBuyForm(f => ({ ...f, [key]: val }));  setBuyErrs(e => ({ ...e, [key]: '' })); };
+
+  /* Convierte archivo de galería → base64 y lo guarda en prodForm.imagen */
+  const pickImage = () => imgInputRef.current?.click();
+
+  const onImgPicked = e => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImgLoading(true);
+    const reader = new FileReader();
+    reader.onload = ev => {
+      const base64 = ev.target.result;
+      setProdForm(f => ({ ...f, imagen: base64 }));
+      if (editId && editId !== 'new') setImgErrs(er => ({ ...er, [editId]: false }));
+      setImgLoading(false);
+    };
+    reader.onerror = () => setImgLoading(false);
+    reader.readAsDataURL(file);
+    // Limpiar input para que se pueda seleccionar la misma foto de nuevo
+    e.target.value = '';
+  };
 
   /* ════════════════════════════════════════════
      SCREEN: HOME
@@ -608,31 +631,96 @@ function App() {
           title: isNew ? 'Nuevo producto' : 'Editar producto',
         }),
 
-        /* Image preview — se actualiza al cambiar URL */
-        h('div', { style: { height: 180, borderRadius: 14, overflow: 'hidden', background: '#f5f5f5', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' } },
-          prodForm.imagen
-            ? h('img', {
-                key: prodForm.imagen,          // React recrea el elemento al cambiar URL
-                src: fixImgUrl(prodForm.imagen),
-                alt: 'Vista previa',
-                style: { width: '100%', height: '100%', objectFit: 'cover' },
-                onError: e => {
-                  e.target.style.display = 'none';
-                  e.target.nextSibling && (e.target.nextSibling.style.display = 'flex');
-                },
-              })
-            : null,
+        /* ── Selector de imagen desde galería ── */
+        h('div', { style: { marginBottom: 18 } },
+
+          /* Preview / tap-to-change */
           h('div', {
+            onClick: pickImage,
             style: {
-              display: prodForm.imagen ? 'none' : 'flex',
-              flexDirection: 'column', alignItems: 'center', gap: 6,
+              height: 200, borderRadius: 14, overflow: 'hidden',
+              background: '#f5f5f5', border: '2px dashed #e0e0e0',
+              display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', position: 'relative',
+              transition: 'border-color 0.15s',
             }
           },
-            h(Icon, { name: 'photo-off', sz: 36, style: { color: '#ccc' } }),
-            h('span', { style: { fontSize: 12, color: '#aaa' } }, 'Sin imagen')
+            /* Hidden real file input */
+            h('input', {
+              ref: imgInputRef,
+              type: 'file',
+              accept: 'image/*',
+              capture: false,         // abre galería, no cámara directamente
+              onChange: onImgPicked,
+              style: { display: 'none' },
+            }),
+
+            prodForm.imagen && !imgLoading
+              ? h('img', {
+                  key: prodForm.imagen.slice(-40),  // key único para forzar re-render
+                  src: prodForm.imagen,
+                  alt: 'Vista previa',
+                  style: { width: '100%', height: '100%', objectFit: 'cover' },
+                })
+              : imgLoading
+                ? h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 } },
+                    h('div', { style: {
+                        width: 36, height: 36, borderRadius: '50%',
+                        border: `3px solid ${B}`, borderTopColor: 'transparent',
+                        animation: 'spin 0.8s linear infinite',
+                      }
+                    }),
+                    h('span', { style: { fontSize: 13, color: GRAY } }, 'Cargando imagen...')
+                  )
+                : h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 } },
+                    h('div', { style: { width: 56, height: 56, borderRadius: '50%', background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
+                      h(Icon, { name: 'photo-plus', sz: 28, style: { color: B } })),
+                    h('span', { style: { fontSize: 14, fontWeight: 700, color: B } }, 'Seleccionar imagen'),
+                    h('span', { style: { fontSize: 12, color: '#aaa' } }, 'Toca para abrir tu galería')
+                  ),
+
+            /* Overlay "cambiar" cuando ya hay imagen */
+            prodForm.imagen && !imgLoading && h('div', {
+              style: {
+                position: 'absolute', bottom: 0, left: 0, right: 0,
+                background: 'rgba(0,0,0,0.45)', padding: '8px',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }
+            },
+              h(Icon, { name: 'pencil', sz: 14, style: { color: '#fff' } }),
+              h('span', { style: { fontSize: 13, color: '#fff', fontWeight: 600 } }, 'Cambiar imagen')
+            )
+          ),
+
+          /* Botones: Galería + Quitar */
+          h('div', { style: { display: 'flex', gap: 8, marginTop: 8 } },
+            h('button', {
+              onClick: pickImage,
+              style: {
+                flex: 1, padding: '11px', borderRadius: 10,
+                border: `1.5px solid ${B}`, background: BL,
+                color: BD, fontWeight: 700, fontSize: 13,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+              }
+            },
+              h(Icon, { name: 'photo', sz: 16 }), 'Abrir galería'
+            ),
+            prodForm.imagen && h('button', {
+              onClick: () => setProdForm(f => ({ ...f, imagen: '' })),
+              style: {
+                padding: '11px 14px', borderRadius: 10,
+                border: '1.5px solid #e0e0e0', background: '#fff',
+                color: GRAY, fontWeight: 600, fontSize: 13,
+                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+              }
+            },
+              h(Icon, { name: 'x', sz: 15 }), 'Quitar'
+            )
           )
         ),
 
+        /* ── Campos de texto ── */
         h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
 
           h(Field, { label: 'Nombre del producto', icon: 'tag', err: prodErrs.producto },
@@ -641,7 +729,6 @@ function App() {
               value: prodForm.producto,
               onChange: e => pf('producto', e.target.value),
               placeholder: 'Ej. Frape de chocolate',
-              autoFocus: true,
             })
           ),
 
@@ -649,8 +736,7 @@ function App() {
             h(Field, { label: 'Categoría', icon: 'layout-grid', err: prodErrs.categoria },
               h('div', null,
                 h('input', {
-                  type: 'text',
-                  list: 'admin-cats',
+                  type: 'text', list: 'admin-cats',
                   value: prodForm.categoria,
                   onChange: e => pf('categoria', e.target.value),
                   placeholder: 'Ej. Frape',
@@ -663,9 +749,7 @@ function App() {
                 type: 'number',
                 value: prodForm.precio,
                 onChange: e => pf('precio', e.target.value),
-                placeholder: '35',
-                min: 1,
-                step: 1,
+                placeholder: '35', min: 1, step: 1,
               })
             )
           ),
@@ -677,26 +761,8 @@ function App() {
               placeholder: 'Describe el producto, ingredientes, presentación...',
               rows: 4,
             })
-          ),
-
-          h(Field, { label: 'URL de imagen (opcional)', icon: 'photo' },
-            h('input', {
-              type: 'text',
-              value: prodForm.imagen,
-              onChange: e => pf('imagen', e.target.value),
-              placeholder: 'https://  ó link de Google Drive...',
-            }),
-            prodForm.imagen && h('div', { style: { fontSize: 11, color: GRAY, marginTop: 5 } },
-              fixImgUrl(prodForm.imagen) !== prodForm.imagen
-                ? h('span', { style: { color: '#2E7D32', fontWeight: 600 } },
-                    h(Icon, { name: 'check', sz: 12, style: { verticalAlign: -1, marginRight: 3 } }),
-                    'Link de Google Drive detectado y convertido automáticamente ✓')
-                : 'Vista previa mostrada arriba'
-            )
           )
         ),
-
-        h('div', { style: { display: 'flex', gap: 10, marginTop: 24 } },
           h(GhostBtn, { onClick: cancelEdit, full: false }, 'Cancelar'),
           h('div', { style: { flex: 1 } },
             h(PrimaryBtn, { onClick: saveProd },
