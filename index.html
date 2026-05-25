@@ -121,6 +121,26 @@ const store = {
 const mxn = n => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(n));
 const uid = () => Date.now() + Math.random();
 
+/* Convierte URLs de Google Drive y Dropbox a links directos de imagen */
+const fixImgUrl = url => {
+  if (!url || typeof url !== 'string') return url;
+  url = url.trim();
+
+  // Google Drive: /file/d/ID/view  →  uc?export=view&id=ID
+  const gdrive = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (gdrive) return `https://drive.google.com/uc?export=view&id=${gdrive[1]}`;
+
+  // Google Drive open link: open?id=ID
+  const gopen = url.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
+  if (gopen) return `https://drive.google.com/uc?export=view&id=${gopen[1]}`;
+
+  // Dropbox: ?dl=0  →  ?raw=1
+  if (url.includes('dropbox.com') && url.includes('dl=0'))
+    return url.replace('dl=0', 'raw=1');
+
+  return url;
+};
+
 /* ─── BASE COMPONENTS ──────────────────────────────── */
 const Icon = ({ name, sz = 18, style: s }) =>
   h('i', { className: `ti ti-${name}`, style: { fontSize: sz, lineHeight: 1, ...s }, 'aria-hidden': true });
@@ -214,9 +234,11 @@ const BackBar = ({ onBack, title, right }) =>
   );
 
 const ProductImg = ({ src, id, imgErrs, setImgErrs, height = 130, fallbackIcon = 'snowflake' }) => {
-  if (src && !imgErrs[id]) {
+  const fixed = fixImgUrl(src);
+  if (fixed && !imgErrs[id]) {
     return h('img', {
-      src, alt: '',
+      src: fixed, alt: '',
+      key: fixed,                      // fuerza re-render al cambiar URL
       style: { width: '100%', height: '100%', objectFit: 'cover' },
       onError: () => setImgErrs(e => ({ ...e, [id]: true })),
     });
@@ -318,7 +340,7 @@ function App() {
 
   const saveProd = () => {
     if (!validateProd()) return;
-    const p = { ...prodForm, precio: Number(prodForm.precio) };
+    const p = { ...prodForm, precio: Number(prodForm.precio), imagen: fixImgUrl(prodForm.imagen) };
     if (editId === 'new') {
       setProducts(prev => [...prev, { ...p, id: uid() }]);
     } else {
@@ -333,7 +355,14 @@ function App() {
     setDelId(null);
   };
 
-  const pf = (key, val) => { setProdForm(f => ({ ...f, [key]: val })); setProdErrs(e => ({ ...e, [key]: '' })); };
+  const pf = (key, val) => {
+    setProdForm(f => ({ ...f, [key]: val }));
+    setProdErrs(e => ({ ...e, [key]: '' }));
+    // Al cambiar la imagen, limpiar el error previo para que se muestre la nueva
+    if (key === 'imagen' && editId && editId !== 'new') {
+      setImgErrs(e => ({ ...e, [editId]: false }));
+    }
+  };
   const bf = (key, val) => { setBuyForm(f => ({ ...f, [key]: val }));  setBuyErrs(e => ({ ...e, [key]: '' })); };
 
   /* ════════════════════════════════════════════
@@ -579,12 +608,30 @@ function App() {
           title: isNew ? 'Nuevo producto' : 'Editar producto',
         }),
 
-        /* Image preview */
-        prodForm.imagen
-          ? h('div', { style: { height: 180, borderRadius: 14, overflow: 'hidden', background: '#f5f5f5', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
-              h('img', { src: prodForm.imagen, alt: 'Vista previa', style: { width: '100%', height: '100%', objectFit: 'cover' }, onError: e => { e.target.style.display = 'none'; } })
-            )
-          : null,
+        /* Image preview — se actualiza al cambiar URL */
+        h('div', { style: { height: 180, borderRadius: 14, overflow: 'hidden', background: '#f5f5f5', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative' } },
+          prodForm.imagen
+            ? h('img', {
+                key: prodForm.imagen,          // React recrea el elemento al cambiar URL
+                src: fixImgUrl(prodForm.imagen),
+                alt: 'Vista previa',
+                style: { width: '100%', height: '100%', objectFit: 'cover' },
+                onError: e => {
+                  e.target.style.display = 'none';
+                  e.target.nextSibling && (e.target.nextSibling.style.display = 'flex');
+                },
+              })
+            : null,
+          h('div', {
+            style: {
+              display: prodForm.imagen ? 'none' : 'flex',
+              flexDirection: 'column', alignItems: 'center', gap: 6,
+            }
+          },
+            h(Icon, { name: 'photo-off', sz: 36, style: { color: '#ccc' } }),
+            h('span', { style: { fontSize: 12, color: '#aaa' } }, 'Sin imagen')
+          )
+        ),
 
         h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
 
@@ -634,12 +681,18 @@ function App() {
 
           h(Field, { label: 'URL de imagen (opcional)', icon: 'photo' },
             h('input', {
-              type: 'url',
+              type: 'text',
               value: prodForm.imagen,
               onChange: e => pf('imagen', e.target.value),
-              placeholder: 'https://...',
+              placeholder: 'https://  ó link de Google Drive...',
             }),
-            prodForm.imagen && h('div', { style: { fontSize: 11, color: GRAY, marginTop: 5 } }, 'Vista previa mostrada arriba')
+            prodForm.imagen && h('div', { style: { fontSize: 11, color: GRAY, marginTop: 5 } },
+              fixImgUrl(prodForm.imagen) !== prodForm.imagen
+                ? h('span', { style: { color: '#2E7D32', fontWeight: 600 } },
+                    h(Icon, { name: 'check', sz: 12, style: { verticalAlign: -1, marginRight: 3 } }),
+                    'Link de Google Drive detectado y convertido automáticamente ✓')
+                : 'Vista previa mostrada arriba'
+            )
           )
         ),
 
