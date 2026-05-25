@@ -6,337 +6,196 @@
   <title>GOMIX</title>
   <meta name="description" content="Antojitos y bebidas a domicilio">
   <meta name="theme-color" content="#E8620A">
-
-  <!-- PWA -->
   <link rel="manifest" href="manifest.json">
-
-  <!-- iOS PWA -->
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="GOMIX">
   <link rel="apple-touch-icon" href="icon.svg">
-
-  <!-- Icons -->
   <link rel="icon" href="icon.svg" type="image/svg+xml">
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.47.0/tabler-icons.min.css">
-
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-    html {
-      height: 100%;
-      -webkit-tap-highlight-color: transparent;
-    }
-
+    html { height: 100%; -webkit-tap-highlight-color: transparent; }
     body {
       height: 100%;
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: #f7f7f5;
-      color: #1a1a1a;
+      background: #f7f7f5; color: #1a1a1a;
       -webkit-font-smoothing: antialiased;
     }
-
-    #root {
-      max-width: 480px;
-      margin: 0 auto;
-      background: #fff;
-      min-height: 100%;
-      padding: 0 16px;
-    }
-
-    input, textarea, select, button {
-      font-family: inherit;
-    }
-
+    #root { max-width: 480px; margin: 0 auto; background: #fff; min-height: 100%; padding: 0 16px; }
+    input, textarea, select, button { font-family: inherit; }
     input, textarea, select {
-      font-size: 15px;
-      padding: 11px 14px;
-      border-radius: 10px;
-      border: 1.5px solid #e0e0e0;
-      background: #fff;
-      color: #1a1a1a;
-      width: 100%;
-      transition: border-color 0.15s, box-shadow 0.15s;
-      -webkit-appearance: none;
-      appearance: none;
+      font-size: 15px; padding: 11px 14px; border-radius: 10px;
+      border: 1.5px solid #e0e0e0; background: #fff; color: #1a1a1a;
+      width: 100%; transition: border-color .15s, box-shadow .15s;
+      -webkit-appearance: none; appearance: none;
     }
-
     input:focus, textarea:focus, select:focus {
-      outline: none;
-      border-color: #E8620A;
-      box-shadow: 0 0 0 3px rgba(232, 98, 10, 0.13);
+      outline: none; border-color: #E8620A;
+      box-shadow: 0 0 0 3px rgba(232,98,10,.13);
     }
-
     textarea { resize: vertical; line-height: 1.5; }
-
     input[type="number"]::-webkit-inner-spin-button,
     input[type="number"]::-webkit-outer-spin-button { opacity: 1; }
-
     button { cursor: pointer; }
-
     img { display: block; }
-
     ::-webkit-scrollbar { width: 0; height: 0; }
-
-    .safe-bottom { padding-bottom: env(safe-area-inset-bottom, 16px); }
-
     @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
 <div id="root"></div>
-
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
 <script>
 'use strict';
 const { useState, useEffect, useRef } = React;
 const h = React.createElement;
 
-/* ─── CONSTANTS ────────────────────────────────────── */
-const B = '#E8620A';
-const BL = '#FFF8F5';
-const BD = '#B54C08';
+/* ── CONSTANTS ─────────────────────────────── */
+const B    = '#E8620A';
+const BL   = '#FFF8F5';
+const BD   = '#B54C08';
 const GRAY = '#6B7280';
-const PIN = '9999';
+const PIN  = '9999';
 
 const INIT_PRODUCTS = [
-  { id: 1, producto: 'Gomiboing de mango',   categoria: 'Gomiboing', precio: 35, descripcion: 'Fresco Boing congelado sabor mango con toppings a elegir añadidos.',             imagen: 'https://images.unsplash.com/photo-1546173159-315724a31696?w=600&auto=format&fit=crop' },
-  { id: 2, producto: 'Gomiboing de uva',     categoria: 'Gomiboing', precio: 35, descripcion: 'Fresco Boing congelado sabor uva con toppings a elegir añadidos.',               imagen: 'https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=600&auto=format&fit=crop' },
-  { id: 3, producto: 'Gomiboing de fresa',   categoria: 'Gomiboing', precio: 35, descripcion: 'Fresco Boing congelado sabor fresa con toppings a elegir añadidos.',             imagen: 'https://images.unsplash.com/photo-1553361371-9b22f78e8b1d?w=600&auto=format&fit=crop' },
-  { id: 4, producto: 'Gomiboing de guayaba', categoria: 'Gomiboing', precio: 35, descripcion: 'Fresco Boing congelado sabor guayaba con toppings a elegir añadidos.',           imagen: 'https://images.unsplash.com/photo-1621955964441-c173e01c135b?w=600&auto=format&fit=crop' },
-  { id: 5, producto: 'Gomiboing de manzana', categoria: 'Gomiboing', precio: 35, descripcion: 'Fresco Boing congelado sabor manzana con toppings a elegir añadidos.',           imagen: 'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=600&auto=format&fit=crop' },
-  { id: 6, producto: 'Frape de oreo',        categoria: 'Frape',     precio: 50, descripcion: 'Cremoso frappé helado de galleta Oreo, decorado con jarabe de chocolate.',      imagen: 'https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&auto=format&fit=crop' },
-  { id: 7, producto: 'Frape de fresa',       categoria: 'Frape',     precio: 50, descripcion: 'Suave frappé sabor fresa intensa, dulce y refrescante.',                        imagen: 'https://images.unsplash.com/photo-1570197788417-0e82375c9371?w=600&auto=format&fit=crop' },
-  { id: 8, producto: 'Frape de cajeta',      categoria: 'Frape',     precio: 50, descripcion: 'Frappé cremoso con el toque dulce y tradicional de la cajeta.',                 imagen: 'https://images.unsplash.com/photo-1534353436294-0dbd4bdac845?w=600&auto=format&fit=crop' },
+  { id:1, producto:'Gomiboing de mango',   categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor mango con toppings a elegir añadidos.',        imagen:'https://images.unsplash.com/photo-1546173159-315724a31696?w=600&auto=format&fit=crop' },
+  { id:2, producto:'Gomiboing de uva',     categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor uva con toppings a elegir añadidos.',          imagen:'https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=600&auto=format&fit=crop' },
+  { id:3, producto:'Gomiboing de fresa',   categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor fresa con toppings a elegir añadidos.',        imagen:'https://images.unsplash.com/photo-1553361371-9b22f78e8b1d?w=600&auto=format&fit=crop' },
+  { id:4, producto:'Gomiboing de guayaba', categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor guayaba con toppings a elegir añadidos.',      imagen:'https://images.unsplash.com/photo-1621955964441-c173e01c135b?w=600&auto=format&fit=crop' },
+  { id:5, producto:'Gomiboing de manzana', categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor manzana con toppings a elegir añadidos.',      imagen:'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=600&auto=format&fit=crop' },
+  { id:6, producto:'Frape de oreo',        categoria:'Frape',     precio:50, descripcion:'Cremoso frappé helado de galleta Oreo, decorado con jarabe de chocolate.', imagen:'https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&auto=format&fit=crop' },
+  { id:7, producto:'Frape de fresa',       categoria:'Frape',     precio:50, descripcion:'Suave frappé sabor fresa intensa, dulce y refrescante.',                   imagen:'https://images.unsplash.com/photo-1570197788417-0e82375c9371?w=600&auto=format&fit=crop' },
+  { id:8, producto:'Frape de cajeta',      categoria:'Frape',     precio:50, descripcion:'Frappé cremoso con el toque dulce y tradicional de la cajeta.',            imagen:'https://images.unsplash.com/photo-1534353436294-0dbd4bdac845?w=600&auto=format&fit=crop' },
 ];
 
-const EMPTY_PROD = { producto: '', categoria: '', precio: '', descripcion: '', imagen: '' };
+const EMPTY_PROD = { producto:'', categoria:'', precio:'', descripcion:'', imagen:'' };
 
-/* ─── HELPERS ──────────────────────────────────────── */
+/* ── HELPERS ───────────────────────────────── */
 const store = {
   get: (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } },
   set: (k, v)   => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
-
-const mxn = n => new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(Number(n));
+const mxn = n => new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN' }).format(Number(n));
 const uid = () => Date.now() + Math.random();
 
-/* Convierte URLs de Google Drive y Dropbox a links directos de imagen */
-const fixImgUrl = url => {
-  if (!url || typeof url !== 'string') return url;
-  url = url.trim();
+/* ── BASE COMPONENTS ───────────────────────── */
+const Icon = ({ name, sz=18, style:s }) =>
+  h('i', { className:`ti ti-${name}`, style:{ fontSize:sz, lineHeight:1, ...s }, 'aria-hidden':true });
 
-  // Google Drive: /file/d/ID/view  →  uc?export=view&id=ID
-  const gdrive = url.match(/drive\.google\.com\/file\/d\/([a-zA-Z0-9_-]+)/);
-  if (gdrive) return `https://drive.google.com/uc?export=view&id=${gdrive[1]}`;
-
-  // Google Drive open link: open?id=ID
-  const gopen = url.match(/drive\.google\.com\/open\?id=([a-zA-Z0-9_-]+)/);
-  if (gopen) return `https://drive.google.com/uc?export=view&id=${gopen[1]}`;
-
-  // Dropbox: ?dl=0  →  ?raw=1
-  if (url.includes('dropbox.com') && url.includes('dl=0'))
-    return url.replace('dl=0', 'raw=1');
-
-  return url;
-};
-
-/* ─── BASE COMPONENTS ──────────────────────────────── */
-const Icon = ({ name, sz = 18, style: s }) =>
-  h('i', { className: `ti ti-${name}`, style: { fontSize: sz, lineHeight: 1, ...s }, 'aria-hidden': true });
-
-const PrimaryBtn = ({ onClick, disabled, children, full = true }) =>
+const Btn = ({ onClick, color=B, textColor='#fff', border='none', bg, children, full=true, disabled }) =>
   h('button', {
     onClick, disabled,
-    style: {
+    style:{
       width: full ? '100%' : 'auto',
-      padding: '14px 22px',
-      background: disabled ? '#ccc' : B,
-      color: '#fff',
-      border: 'none',
-      borderRadius: 12,
-      fontSize: 15,
-      fontWeight: 600,
+      padding:'13px 20px', borderRadius:12,
+      background: disabled ? '#ccc' : (bg || color),
+      color: disabled ? '#fff' : textColor,
+      border, fontSize:15, fontWeight:700,
       cursor: disabled ? 'not-allowed' : 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      transition: 'opacity 0.15s',
-      WebkitTapHighlightColor: 'transparent',
-    }
-  }, ...children);
-
-const GhostBtn = ({ onClick, children, full = false }) =>
-  h('button', {
-    onClick,
-    style: {
-      width: full ? '100%' : 'auto',
-      padding: '13px 20px',
-      background: '#fff',
-      color: GRAY,
-      border: '1.5px solid #e0e0e0',
-      borderRadius: 12,
-      fontSize: 15,
-      fontWeight: 500,
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
-      WebkitTapHighlightColor: 'transparent',
-    }
-  }, ...children);
-
-const DangerBtn = ({ onClick, children, full = false }) =>
-  h('button', {
-    onClick,
-    style: {
-      width: full ? '100%' : 'auto',
-      padding: '13px 20px',
-      background: '#A32D2D',
-      color: '#fff',
-      border: 'none',
-      borderRadius: 12,
-      fontSize: 15,
-      fontWeight: 600,
-      cursor: 'pointer',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      gap: 8,
+      display:'flex', alignItems:'center', justifyContent:'center', gap:8,
+      transition:'opacity .15s', WebkitTapHighlightColor:'transparent',
     }
   }, ...children);
 
 const Field = ({ label, icon, err, children }) =>
   h('div', null,
-    h('label', { style: { fontSize: 13, fontWeight: 600, color: GRAY, display: 'block', marginBottom: 7, letterSpacing: 0.2 } },
-      h(Icon, { name: icon, sz: 14, style: { verticalAlign: -2, marginRight: 4 } }), label),
+    h('label', { style:{ fontSize:13, fontWeight:600, color:GRAY, display:'block', marginBottom:7, letterSpacing:.2 } },
+      h(Icon, { name:icon, sz:14, style:{ verticalAlign:-2, marginRight:4 } }), label),
     children,
-    err && h('span', { style: { fontSize: 12, color: '#C62828', marginTop: 5, display: 'block', fontWeight: 500 } },
-      h(Icon, { name: 'alert-circle', sz: 12, style: { verticalAlign: -1, marginRight: 3 } }), err)
+    err && h('span', { style:{ fontSize:12, color:'#C62828', marginTop:5, display:'block', fontWeight:500 } },
+      h(Icon, { name:'alert-circle', sz:12, style:{ verticalAlign:-1, marginRight:3 } }), err)
   );
 
-const BackBar = ({ onBack, title, right }) =>
+const BackBar = ({ onBack, title }) =>
   h('div', {
-    style: {
-      display: 'flex', alignItems: 'center', gap: 10,
-      padding: '14px 0', borderBottom: '1px solid #f0f0f0', marginBottom: 18,
-      position: 'sticky', top: 0, background: '#fff', zIndex: 10,
+    style:{
+      display:'flex', alignItems:'center', gap:10,
+      padding:'14px 0', borderBottom:'1px solid #f0f0f0', marginBottom:18,
+      position:'sticky', top:0, background:'#fff', zIndex:10,
     }
   },
     h('button', {
       onClick: onBack,
-      style: { background: 'none', border: 'none', padding: '5px 6px', cursor: 'pointer', color: GRAY, fontSize: 24, display: 'flex', lineHeight: 1, borderRadius: 8 },
-    }, h(Icon, { name: 'arrow-left', sz: 24 })),
-    h('span', { style: { fontSize: 17, fontWeight: 700, flex: 1, color: '#1a1a1a' } }, title),
-    right
+      style:{ background:'none', border:'none', padding:'5px 6px', cursor:'pointer', color:GRAY, display:'flex', lineHeight:1, borderRadius:8 },
+    }, h(Icon, { name:'arrow-left', sz:24 })),
+    h('span', { style:{ fontSize:17, fontWeight:700, flex:1, color:'#1a1a1a' } }, title)
   );
 
-const ProductImg = ({ src, id, imgErrs, setImgErrs, height = 130, fallbackIcon = 'snowflake' }) => {
-  const fixed = fixImgUrl(src);
-  if (fixed && !imgErrs[id]) {
+/* Renders a product image — base64 or external URL */
+const ProductImg = ({ src, id, imgErrs, setImgErrs, height=130, icon='snowflake' }) => {
+  if (src && !imgErrs[id]) {
     return h('img', {
-      src: fixed, alt: '',
-      key: fixed,                      // fuerza re-render al cambiar URL
-      style: { width: '100%', height: '100%', objectFit: 'cover' },
-      onError: () => setImgErrs(e => ({ ...e, [id]: true })),
+      key: src.slice(-30),
+      src, alt:'',
+      style:{ width:'100%', height:'100%', objectFit:'cover' },
+      onError: () => setImgErrs(e => ({ ...e, [id]:true })),
     });
   }
-  return h(Icon, { name: fallbackIcon, sz: Math.round(height * 0.32), style: { color: B } });
+  return h(Icon, { name:icon, sz:Math.round(height * .32), style:{ color:B } });
 };
 
-/* ─── MAIN APP ─────────────────────────────────────── */
+/* ── APP ───────────────────────────────────── */
 function App() {
-  const [screen,    setScreen]    = useState('home');
-  const [products,  setProducts]  = useState(() => store.get('gomix_products', INIT_PRODUCTS));
-  const [sel,       setSel]       = useState(null);
-  const [qty,       setQty]       = useState(1);
-  const [orders,    setOrders]    = useState(() => store.get('gomix_orders', []));
-  const [buyForm,   setBuyForm]   = useState({ nombre: '', pago: 'efectivo', direccion: '' });
-  const [buyErrs,   setBuyErrs]   = useState({});
-  const [pin,       setPin]       = useState('');
-  const [pinErr,    setPinErr]    = useState(false);
-  const [cat,       setCat]       = useState('Todos');
-  const [imgErrs,   setImgErrs]   = useState({});
-  const [adminTab,  setAdminTab]  = useState('pedidos');
-  const [editId,    setEditId]    = useState(null);   // null | 'new' | product.id
-  const [prodForm,  setProdForm]  = useState(EMPTY_PROD);
-  const [prodErrs,  setProdErrs]  = useState({});
-  const [delId,     setDelId]     = useState(null);
+  const [screen,     setScreen]     = useState('home');
+  const [products,   setProducts]   = useState(() => store.get('gomix_products', INIT_PRODUCTS));
+  const [sel,        setSel]        = useState(null);
+  const [qty,        setQty]        = useState(1);
+  const [orders,     setOrders]     = useState(() => store.get('gomix_orders', []));
+  const [buyForm,    setBuyForm]    = useState({ nombre:'', pago:'efectivo', direccion:'' });
+  const [buyErrs,    setBuyErrs]    = useState({});
+  const [pin,        setPin]        = useState('');
+  const [pinErr,     setPinErr]     = useState(false);
+  const [cat,        setCat]        = useState('Todos');
+  const [imgErrs,    setImgErrs]    = useState({});
+  const [adminTab,   setAdminTab]   = useState('pedidos');
+  const [editId,     setEditId]     = useState(null);
+  const [prodForm,   setProdForm]   = useState(EMPTY_PROD);
+  const [prodErrs,   setProdErrs]   = useState({});
+  const [delId,      setDelId]      = useState(null);
   const [imgLoading, setImgLoading] = useState(false);
   const pinRef      = useRef(null);
   const imgInputRef = useRef(null);
 
-  /* persist */
   useEffect(() => store.set('gomix_products', products), [products]);
   useEffect(() => store.set('gomix_orders',   orders),   [orders]);
-
-  /* scroll to top on screen change */
   useEffect(() => { window.scrollTo(0, 0); }, [screen]);
-
-  /* focus PIN input */
   useEffect(() => { if (screen === 'adminLogin') setTimeout(() => pinRef.current?.focus(), 100); }, [screen]);
 
-  const cats       = ['Todos', ...new Set(products.map(p => p.categoria).filter(Boolean))];
-  const adminCats  = [...new Set(products.map(p => p.categoria).filter(Boolean))];
-  const visible    = cat === 'Todos' ? products : products.filter(p => p.categoria === cat);
+  const cats      = ['Todos', ...new Set(products.map(p => p.categoria).filter(Boolean))];
+  const adminCats = [...new Set(products.map(p => p.categoria).filter(Boolean))];
+  const visible   = cat === 'Todos' ? products : products.filter(p => p.categoria === cat);
 
-  /* ── Navigation ── */
+  /* navigation */
   const openProduct = p => { setSel(p); setQty(1); setScreen('product'); };
+  const goHome      = () => { setScreen('home'); };
+  const goAdmin     = () => { setScreen('admin'); setPin(''); setPinErr(false); setAdminTab('pedidos'); setEditId(null); setDelId(null); };
 
-  const goAdmin = () => {
-    setScreen('admin');
-    setPin('');
-    setPinErr(false);
-    setAdminTab('pedidos');
-    setEditId(null);
-    setDelId(null);
-  };
-
-  /* ── Order ── */
+  /* checkout */
   const submitOrder = () => {
     const e = {};
     if (!buyForm.nombre.trim())    e.nombre    = 'Escribe tu nombre';
     if (!buyForm.direccion.trim()) e.direccion = 'Escribe tu dirección';
     if (Object.keys(e).length) { setBuyErrs(e); return; }
-    setOrders(prev => [{
-      id: uid(), ...sel, cant: qty,
-      total: sel.precio * qty, ...buyForm,
-      fecha: new Date().toLocaleString('es-MX'),
-    }, ...prev]);
+    setOrders(prev => [{ id:uid(), ...sel, cant:qty, total:sel.precio*qty, ...buyForm, fecha:new Date().toLocaleString('es-MX') }, ...prev]);
     setScreen('done');
   };
 
-  /* ── Auth ── */
-  const doLogin = () => {
-    if (pin === PIN) goAdmin();
-    else { setPinErr(true); setPin(''); }
-  };
+  /* auth */
+  const doLogin = () => { if (pin === PIN) goAdmin(); else { setPinErr(true); setPin(''); } };
 
-  /* ── Product CRUD ── */
-  const startNew = () => {
-    setProdForm(EMPTY_PROD);
-    setProdErrs({});
-    setEditId('new');
-  };
-
-  const startEdit = p => {
-    setProdForm({ ...p, precio: String(p.precio) });
-    setProdErrs({});
-    setEditId(p.id);
-  };
-
-  const cancelEdit = () => { setEditId(null); setProdErrs({}); };
+  /* product CRUD */
+  const startNew  = () => { setProdForm(EMPTY_PROD); setProdErrs({}); setImgLoading(false); setEditId('new'); };
+  const startEdit = p  => { setProdForm({ ...p, precio:String(p.precio) }); setProdErrs({}); setImgLoading(false); setEditId(p.id); };
+  const cancelEdit    = () => { setEditId(null); setProdErrs({}); };
 
   const validateProd = () => {
     const e = {};
-    if (!prodForm.producto.trim())   e.producto   = 'Nombre requerido';
-    if (!prodForm.categoria.trim())  e.categoria  = 'Categoría requerida';
+    if (!prodForm.producto.trim())    e.producto    = 'Nombre requerido';
+    if (!prodForm.categoria.trim())   e.categoria   = 'Categoría requerida';
     if (!prodForm.precio || isNaN(Number(prodForm.precio)) || Number(prodForm.precio) <= 0)
-                                     e.precio     = 'Precio inválido';
+                                      e.precio      = 'Precio inválido';
     if (!prodForm.descripcion.trim()) e.descripcion = 'Descripción requerida';
     setProdErrs(e);
     return !Object.keys(e).length;
@@ -344,9 +203,9 @@ function App() {
 
   const saveProd = () => {
     if (!validateProd()) return;
-    const p = { ...prodForm, precio: Number(prodForm.precio), imagen: fixImgUrl(prodForm.imagen) };
+    const p = { ...prodForm, precio:Number(prodForm.precio) };
     if (editId === 'new') {
-      setProducts(prev => [...prev, { ...p, id: uid() }]);
+      setProducts(prev => [...prev, { ...p, id:uid() }]);
     } else {
       setProducts(prev => prev.map(x => x.id === editId ? { ...x, ...p } : x));
       if (sel?.id === editId) setSel(s => ({ ...s, ...p }));
@@ -354,574 +213,418 @@ function App() {
     setEditId(null);
   };
 
-  const deleteProd = () => {
-    setProducts(prev => prev.filter(p => p.id !== delId));
-    setDelId(null);
-  };
+  const deleteProd = () => { setProducts(prev => prev.filter(p => p.id !== delId)); setDelId(null); };
 
-  const pf = (key, val) => {
-    setProdForm(f => ({ ...f, [key]: val }));
-    setProdErrs(e => ({ ...e, [key]: '' }));
-    if (key === 'imagen' && editId && editId !== 'new') {
-      setImgErrs(e => ({ ...e, [editId]: false }));
-    }
-  };
-  const bf = (key, val) => { setBuyForm(f => ({ ...f, [key]: val }));  setBuyErrs(e => ({ ...e, [key]: '' })); };
+  /* field helpers */
+  const pf = (key, val) => { setProdForm(f => ({ ...f, [key]:val })); setProdErrs(e => ({ ...e, [key]:'' })); };
+  const bf = (key, val) => { setBuyForm(f  => ({ ...f, [key]:val })); setBuyErrs(e  => ({ ...e, [key]:'' })); };
 
-  /* Convierte archivo de galería → base64 y lo guarda en prodForm.imagen */
-  const pickImage = () => imgInputRef.current?.click();
+  /* image picker */
+  const pickImage = e => { e.stopPropagation(); imgInputRef.current?.click(); };
 
   const onImgPicked = e => {
     const file = e.target.files?.[0];
     if (!file) return;
     setImgLoading(true);
     const reader = new FileReader();
-    reader.onload = ev => {
-      const base64 = ev.target.result;
-      setProdForm(f => ({ ...f, imagen: base64 }));
-      if (editId && editId !== 'new') setImgErrs(er => ({ ...er, [editId]: false }));
-      setImgLoading(false);
-    };
-    reader.onerror = () => setImgLoading(false);
+    reader.onload  = ev => { setProdForm(f => ({ ...f, imagen:ev.target.result })); setImgLoading(false); };
+    reader.onerror = ()  => setImgLoading(false);
     reader.readAsDataURL(file);
-    // Limpiar input para que se pueda seleccionar la misma foto de nuevo
     e.target.value = '';
   };
 
-  /* ════════════════════════════════════════════
-     SCREEN: HOME
-  ════════════════════════════════════════════ */
-  if (screen === 'home') return h('div', { style: { paddingBottom: 32 } },
-    /* Header */
-    h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '18px 0 16px', borderBottom: '1px solid #f0f0f0', marginBottom: 16 } },
-      h('div', { style: { width: 44, height: 44, borderRadius: 13, background: B, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 } },
-        h(Icon, { name: 'snowflake', sz: 24, style: { color: '#fff' } })),
-      h('div', { style: { flex: 1 } },
-        h('div', { style: { fontSize: 26, fontWeight: 800, color: B, lineHeight: 1 } }, 'GOMIX'),
-        h('div', { style: { fontSize: 12, color: GRAY, marginTop: 2 } }, 'Antojitos y bebidas a domicilio')
+  const fallback = cat => cat === 'Frape' ? 'cup' : 'snowflake';
+
+  /* ════════════════════════
+     HOME
+  ════════════════════════ */
+  if (screen === 'home') return h('div', { style:{ paddingBottom:32 } },
+    h('div', { style:{ display:'flex', alignItems:'center', gap:12, padding:'18px 0 16px', borderBottom:'1px solid #f0f0f0', marginBottom:16 } },
+      h('div', { style:{ width:44, height:44, borderRadius:13, background:B, display:'flex', alignItems:'center', justifyContent:'center', flexShrink:0 } },
+        h(Icon, { name:'snowflake', sz:24, style:{ color:'#fff' } })),
+      h('div', { style:{ flex:1 } },
+        h('div', { style:{ fontSize:26, fontWeight:800, color:B, lineHeight:1 } }, 'GOMIX'),
+        h('div', { style:{ fontSize:12, color:GRAY, marginTop:2 } }, 'Antojitos y bebidas a domicilio')
       ),
       h('button', {
         onClick: () => { setPin(''); setPinErr(false); setScreen('adminLogin'); },
-        style: { fontSize: 13, padding: '7px 12px', borderRadius: 9, border: '1.5px solid #e8e8e8', background: 'none', cursor: 'pointer', color: GRAY, display: 'flex', alignItems: 'center', gap: 5, fontWeight: 500 },
-      }, h(Icon, { name: 'lock', sz: 14 }), 'Admin')
+        style:{ fontSize:13, padding:'7px 12px', borderRadius:9, border:'1.5px solid #e8e8e8', background:'none', cursor:'pointer', color:GRAY, display:'flex', alignItems:'center', gap:5, fontWeight:500 },
+      }, h(Icon, { name:'lock', sz:14 }), 'Admin')
     ),
-
-    /* Category tabs */
-    h('div', { style: { display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 14, marginBottom: 16 } },
+    h('div', { style:{ display:'flex', gap:8, overflowX:'auto', paddingBottom:14, marginBottom:16 } },
       cats.map(c => h('button', {
-        key: c, onClick: () => setCat(c),
-        style: {
-          padding: '7px 18px', borderRadius: 24,
-          border: '1.5px solid', borderColor: cat === c ? B : '#e8e8e8',
-          background: cat === c ? BL : '#fff',
-          color: cat === c ? BD : GRAY,
-          cursor: 'pointer', fontSize: 13,
-          fontWeight: cat === c ? 700 : 400,
-          whiteSpace: 'nowrap', flexShrink: 0,
-          transition: 'all 0.15s',
-        }
+        key:c, onClick:() => setCat(c),
+        style:{ padding:'7px 18px', borderRadius:24, border:'1.5px solid', borderColor:cat===c?B:'#e8e8e8', background:cat===c?BL:'#fff', color:cat===c?BD:GRAY, cursor:'pointer', fontSize:13, fontWeight:cat===c?700:400, whiteSpace:'nowrap', flexShrink:0 },
       }, c))
     ),
-
-    /* Product grid */
-    h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 12 } },
+    h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:12 } },
       visible.map(p => h('div', {
-        key: p.id, onClick: () => openProduct(p),
-        style: { background: '#fff', border: '1px solid #efefef', borderRadius: 14, overflow: 'hidden', cursor: 'pointer', transition: 'transform 0.1s' },
+        key:p.id, onClick:() => openProduct(p),
+        style:{ background:'#fff', border:'1px solid #efefef', borderRadius:14, overflow:'hidden', cursor:'pointer' },
       },
-        h('div', { style: { height: 130, background: '#f5f5f5', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' } },
-          h(ProductImg, { src: p.imagen, id: p.id, imgErrs, setImgErrs, height: 130, fallbackIcon: p.categoria === 'Frape' ? 'cup' : 'snowflake' })
+        h('div', { style:{ height:130, background:'#f5f5f5', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' } },
+          h(ProductImg, { src:p.imagen, id:p.id, imgErrs, setImgErrs, height:130, icon:fallback(p.categoria) })
         ),
-        h('div', { style: { padding: '10px 12px 13px' } },
-          h('div', { style: { fontSize: 11, color: '#aaa', marginBottom: 2 } }, p.categoria),
-          h('div', { style: { fontSize: 14, fontWeight: 700, lineHeight: 1.35, marginBottom: 6, color: '#1a1a1a' } }, p.producto),
-          h('div', { style: { fontSize: 17, fontWeight: 800, color: B } }, mxn(p.precio))
+        h('div', { style:{ padding:'10px 12px 13px' } },
+          h('div', { style:{ fontSize:11, color:'#aaa', marginBottom:2 } }, p.categoria),
+          h('div', { style:{ fontSize:14, fontWeight:700, lineHeight:1.35, marginBottom:6 } }, p.producto),
+          h('div', { style:{ fontSize:17, fontWeight:800, color:B } }, mxn(p.precio))
         )
       ))
     )
   );
 
-  /* ════════════════════════════════════════════
-     SCREEN: PRODUCT DETAIL
-  ════════════════════════════════════════════ */
-  if (screen === 'product' && sel) return h('div', { style: { paddingBottom: 32 } },
-    h(BackBar, { onBack: () => setScreen('home'), title: '' }),
-    h('div', { style: { height: 250, borderRadius: 16, overflow: 'hidden', background: '#f5f5f5', marginBottom: 18, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
-      h(ProductImg, { src: sel.imagen, id: sel.id, imgErrs, setImgErrs, height: 250, fallbackIcon: sel.categoria === 'Frape' ? 'cup' : 'snowflake' })
+  /* ════════════════════════
+     PRODUCT DETAIL
+  ════════════════════════ */
+  if (screen === 'product' && sel) return h('div', { style:{ paddingBottom:32 } },
+    h(BackBar, { onBack:goHome, title:sel.producto }),
+    h('div', { style:{ height:250, borderRadius:16, overflow:'hidden', background:'#f5f5f5', marginBottom:18, display:'flex', alignItems:'center', justifyContent:'center' } },
+      h(ProductImg, { src:sel.imagen, id:sel.id, imgErrs, setImgErrs, height:250, icon:fallback(sel.categoria) })
     ),
-
-    h('div', { style: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 14 } },
-      h('div', { style: { flex: 1 } },
-        h('div', { style: { fontSize: 11, color: '#aaa', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 } }, sel.categoria),
-        h('div', { style: { fontSize: 23, fontWeight: 800, lineHeight: 1.2, color: '#1a1a1a' } }, sel.producto)
+    h('div', { style:{ display:'flex', justifyContent:'space-between', alignItems:'flex-start', marginBottom:14 } },
+      h('div', { style:{ flex:1 } },
+        h('div', { style:{ fontSize:11, color:'#aaa', textTransform:'uppercase', letterSpacing:1, marginBottom:4 } }, sel.categoria),
+        h('div', { style:{ fontSize:23, fontWeight:800, lineHeight:1.2 } }, sel.producto)
       ),
-      h('div', { style: { fontSize: 26, fontWeight: 800, color: B, flexShrink: 0, marginLeft: 12 } }, mxn(sel.precio))
+      h('div', { style:{ fontSize:26, fontWeight:800, color:B, flexShrink:0, marginLeft:12 } }, mxn(sel.precio))
     ),
-
-    h('div', { style: { background: '#fafafa', borderRadius: 12, padding: '14px 16px', marginBottom: 22 } },
-      h('div', { style: { fontSize: 11, fontWeight: 700, color: GRAY, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 7 } },
-        h(Icon, { name: 'leaf', sz: 13, style: { verticalAlign: -1, marginRight: 4 } }), 'Descripción'),
-      h('p', { style: { margin: 0, fontSize: 14, lineHeight: 1.7, color: '#444' } }, sel.descripcion)
+    h('div', { style:{ background:'#fafafa', borderRadius:12, padding:'14px 16px', marginBottom:22 } },
+      h('div', { style:{ fontSize:11, fontWeight:700, color:GRAY, textTransform:'uppercase', letterSpacing:.8, marginBottom:7 } },
+        h(Icon, { name:'leaf', sz:13, style:{ verticalAlign:-1, marginRight:4 } }), 'Descripción'),
+      h('p', { style:{ margin:0, fontSize:14, lineHeight:1.7, color:'#444' } }, sel.descripcion)
     ),
-
-    /* Quantity stepper */
-    h('div', { style: { display: 'flex', alignItems: 'center', marginBottom: 22 } },
-      h('span', { style: { flex: 1, fontSize: 16, fontWeight: 700 } }, 'Cantidad'),
-      h('div', { style: { display: 'flex', alignItems: 'center', border: '1.5px solid #e8e8e8', borderRadius: 12, overflow: 'hidden' } },
-        h('button', {
-          onClick: () => setQty(q => Math.max(1, q - 1)),
-          style: { width: 44, height: 44, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: qty === 1 ? '#ccc' : '#333' },
-        }, h(Icon, { name: 'minus', sz: 18 })),
-        h('span', { style: { width: 44, textAlign: 'center', fontSize: 18, fontWeight: 800 } }, qty),
-        h('button', {
-          onClick: () => setQty(q => q + 1),
-          style: { width: 44, height: 44, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#333' },
-        }, h(Icon, { name: 'plus', sz: 18 }))
+    h('div', { style:{ display:'flex', alignItems:'center', marginBottom:22 } },
+      h('span', { style:{ flex:1, fontSize:16, fontWeight:700 } }, 'Cantidad'),
+      h('div', { style:{ display:'flex', alignItems:'center', border:'1.5px solid #e8e8e8', borderRadius:12, overflow:'hidden' } },
+        h('button', { onClick:() => setQty(q => Math.max(1,q-1)), style:{ width:44, height:44, background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:qty===1?'#ccc':'#333' } }, h(Icon, { name:'minus', sz:18 })),
+        h('span', { style:{ width:44, textAlign:'center', fontSize:18, fontWeight:800 } }, qty),
+        h('button', { onClick:() => setQty(q => q+1), style:{ width:44, height:44, background:'none', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#333' } }, h(Icon, { name:'plus', sz:18 }))
       ),
-      h('span', { style: { minWidth: 100, textAlign: 'right', fontSize: 20, fontWeight: 800, color: B } }, mxn(sel.precio * qty))
+      h('span', { style:{ minWidth:100, textAlign:'right', fontSize:20, fontWeight:800, color:B } }, mxn(sel.precio*qty))
     ),
-
-    h(PrimaryBtn, {
-      onClick: () => { setBuyForm({ nombre: '', pago: 'efectivo', direccion: '' }); setBuyErrs({}); setScreen('checkout'); },
-    },
-      h(Icon, { name: 'shopping-cart', sz: 19 }), 'Comprar — ', mxn(sel.precio * qty))
+    h(Btn, { onClick:() => { setBuyForm({ nombre:'', pago:'efectivo', direccion:'' }); setBuyErrs({}); setScreen('checkout'); } },
+      h(Icon, { name:'shopping-cart', sz:19 }), 'Comprar — ', mxn(sel.precio*qty))
   );
 
-  /* ════════════════════════════════════════════
-     SCREEN: CHECKOUT
-  ════════════════════════════════════════════ */
-  if (screen === 'checkout' && sel) return h('div', { style: { paddingBottom: 32 } },
-    h(BackBar, { onBack: () => setScreen('product'), title: 'Datos de entrega' }),
-
-    /* Order summary */
-    h('div', { style: { background: '#fafafa', borderRadius: 12, padding: '14px 16px', marginBottom: 22 } },
-      h('div', { style: { fontSize: 11, fontWeight: 700, color: GRAY, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 } }, 'Resumen del pedido'),
-      h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: 14, marginBottom: 10 } },
-        h('span', { style: { color: '#555' } }, sel.producto, ' × ', qty),
-        h('span', { style: { fontWeight: 700 } }, mxn(sel.precio * qty))
+  /* ════════════════════════
+     CHECKOUT
+  ════════════════════════ */
+  if (screen === 'checkout' && sel) return h('div', { style:{ paddingBottom:32 } },
+    h(BackBar, { onBack:() => setScreen('product'), title:'Datos de entrega' }),
+    h('div', { style:{ background:'#fafafa', borderRadius:12, padding:'14px 16px', marginBottom:22 } },
+      h('div', { style:{ fontSize:11, fontWeight:700, color:GRAY, textTransform:'uppercase', letterSpacing:.8, marginBottom:10 } }, 'Resumen del pedido'),
+      h('div', { style:{ display:'flex', justifyContent:'space-between', fontSize:14, marginBottom:10 } },
+        h('span', { style:{ color:'#555' } }, sel.producto,' × ',qty),
+        h('span', { style:{ fontWeight:700 } }, mxn(sel.precio*qty))
       ),
-      h('div', { style: { borderTop: '1px solid #ebebeb', paddingTop: 10, display: 'flex', justifyContent: 'space-between', fontSize: 17, fontWeight: 800 } },
-        h('span', null, 'Total'), h('span', { style: { color: B } }, mxn(sel.precio * qty))
+      h('div', { style:{ borderTop:'1px solid #ebebeb', paddingTop:10, display:'flex', justifyContent:'space-between', fontSize:17, fontWeight:800 } },
+        h('span', null, 'Total'), h('span', { style:{ color:B } }, mxn(sel.precio*qty))
       )
     ),
-
-    h('div', { style: { display: 'flex', flexDirection: 'column', gap: 18 } },
-
-      h(Field, { label: 'Nombre completo', icon: 'user', err: buyErrs.nombre },
-        h('input', {
-          type: 'text',
-          value: buyForm.nombre,
-          onChange: e => bf('nombre', e.target.value),
-          placeholder: 'Escribe tu nombre...',
-        })
+    h('div', { style:{ display:'flex', flexDirection:'column', gap:18 } },
+      h(Field, { label:'Nombre completo', icon:'user', err:buyErrs.nombre },
+        h('input', { type:'text', value:buyForm.nombre, onChange:e => bf('nombre',e.target.value), placeholder:'Escribe tu nombre...' })
       ),
-
-      /* Payment toggle */
       h('div', null,
-        h('label', { style: { fontSize: 13, fontWeight: 600, color: GRAY, display: 'block', marginBottom: 10 } },
-          h(Icon, { name: 'wallet', sz: 14, style: { verticalAlign: -2, marginRight: 4 } }), 'Forma de pago'),
-        h('div', { style: { display: 'flex', gap: 10 } },
-          [{ k: 'efectivo', label: 'Efectivo', icon: 'cash' }, { k: 'transferencia', label: 'Transferencia', icon: 'credit-card' }].map(opt =>
+        h('label', { style:{ fontSize:13, fontWeight:600, color:GRAY, display:'block', marginBottom:10 } },
+          h(Icon, { name:'wallet', sz:14, style:{ verticalAlign:-2, marginRight:4 } }), 'Forma de pago'),
+        h('div', { style:{ display:'flex', gap:10 } },
+          [{ k:'efectivo', label:'Efectivo', icon:'cash' },{ k:'transferencia', label:'Transferencia', icon:'credit-card' }].map(opt =>
             h('div', {
-              key: opt.k,
-              onClick: () => setBuyForm(f => ({ ...f, pago: opt.k })),
-              style: {
-                flex: 1, padding: '14px 8px',
-                borderRadius: 12,
-                border: buyForm.pago === opt.k ? `2.5px solid ${B}` : '1.5px solid #e8e8e8',
-                background: buyForm.pago === opt.k ? BL : '#fff',
-                cursor: 'pointer', textAlign: 'center', transition: 'all 0.15s',
-              }
+              key:opt.k, onClick:() => setBuyForm(f => ({ ...f, pago:opt.k })),
+              style:{ flex:1, padding:'14px 8px', borderRadius:12, border:buyForm.pago===opt.k?`2.5px solid ${B}`:'1.5px solid #e8e8e8', background:buyForm.pago===opt.k?BL:'#fff', cursor:'pointer', textAlign:'center' },
             },
-              h(Icon, { name: opt.icon, sz: 24, style: { display: 'block', margin: '0 auto 6px', color: buyForm.pago === opt.k ? B : GRAY } }),
-              h('span', { style: { fontSize: 13, fontWeight: buyForm.pago === opt.k ? 700 : 400, color: buyForm.pago === opt.k ? BD : '#555' } }, opt.label)
+              h(Icon, { name:opt.icon, sz:24, style:{ display:'block', margin:'0 auto 6px', color:buyForm.pago===opt.k?B:GRAY } }),
+              h('span', { style:{ fontSize:13, fontWeight:buyForm.pago===opt.k?700:400, color:buyForm.pago===opt.k?BD:'#555' } }, opt.label)
             )
           )
         )
       ),
-
-      h(Field, { label: 'Dirección de entrega', icon: 'map-pin', err: buyErrs.direccion },
-        h('textarea', {
-          value: buyForm.direccion,
-          onChange: e => bf('direccion', e.target.value),
-          placeholder: 'Calle y número, colonia, ciudad...',
-          rows: 3,
-        })
+      h(Field, { label:'Dirección de entrega', icon:'map-pin', err:buyErrs.direccion },
+        h('textarea', { value:buyForm.direccion, onChange:e => bf('direccion',e.target.value), placeholder:'Calle y número, colonia, ciudad...', rows:3 })
       )
     ),
-
-    h('div', { style: { marginTop: 24 } },
-      h(PrimaryBtn, { onClick: submitOrder },
-        h(Icon, { name: 'check', sz: 19 }), 'Confirmar pedido')
+    h('div', { style:{ marginTop:24 } },
+      h(Btn, { onClick:submitOrder }, h(Icon, { name:'check', sz:19 }), 'Confirmar pedido')
     )
   );
 
-  /* ════════════════════════════════════════════
-     SCREEN: ORDER CONFIRMED
-  ════════════════════════════════════════════ */
+  /* ════════════════════════
+     ORDER DONE
+  ════════════════════════ */
   if (screen === 'done') {
     const o = orders[0];
-    return h('div', { style: { paddingBottom: 32, textAlign: 'center' } },
-      h('div', { style: { padding: '2.5rem 0 2rem' } },
-        h('div', { style: { width: 80, height: 80, borderRadius: '50%', background: '#E8F5E9', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 20px' } },
-          h(Icon, { name: 'check', sz: 42, style: { color: '#2E7D32' } })),
-        h('div', { style: { fontSize: 26, fontWeight: 800, marginBottom: 8 } }, '¡Pedido confirmado!'),
-        h('div', { style: { fontSize: 14, color: GRAY, marginBottom: 26, lineHeight: 1.7 } },
-          'Gracias por tu compra. Nos pondremos\nen contacto para coordinar la entrega.'),
-
-        o && h('div', { style: { background: '#fafafa', borderRadius: 14, padding: '16px', textAlign: 'left', marginBottom: 26 } },
-          h('div', { style: { fontSize: 11, fontWeight: 700, color: GRAY, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 10 } }, 'Detalles del pedido'),
-          [
-            ['Producto',  `${o.producto} × ${o.cant}`],
-            ['Total',     mxn(o.total)],
-            ['Nombre',    o.nombre],
-            ['Pago',      o.pago === 'efectivo' ? 'Efectivo' : 'Transferencia'],
-            ['Dirección', o.direccion],
-          ].map(([k, v]) =>
-            h('div', { key: k, style: { display: 'flex', justifyContent: 'space-between', fontSize: 13, padding: '7px 0', borderBottom: '1px solid #ebebeb' } },
-              h('span', { style: { color: GRAY, flexShrink: 0, marginRight: 12, fontWeight: 500 } }, k),
-              h('span', { style: { fontWeight: 700, textAlign: 'right', wordBreak: 'break-word', maxWidth: '58%' } }, v)
+    return h('div', { style:{ paddingBottom:32, textAlign:'center' } },
+      h('div', { style:{ padding:'2.5rem 0 2rem' } },
+        h('div', { style:{ width:80, height:80, borderRadius:'50%', background:'#E8F5E9', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 20px' } },
+          h(Icon, { name:'check', sz:42, style:{ color:'#2E7D32' } })),
+        h('div', { style:{ fontSize:26, fontWeight:800, marginBottom:8 } }, '¡Pedido confirmado!'),
+        h('p', { style:{ fontSize:14, color:GRAY, marginBottom:26, lineHeight:1.7 } }, 'Nos pondremos en contacto para coordinar la entrega.'),
+        o && h('div', { style:{ background:'#fafafa', borderRadius:14, padding:'16px', textAlign:'left', marginBottom:26 } },
+          h('div', { style:{ fontSize:11, fontWeight:700, color:GRAY, textTransform:'uppercase', letterSpacing:.8, marginBottom:10 } }, 'Detalles del pedido'),
+          [['Producto',`${o.producto} × ${o.cant}`],['Total',mxn(o.total)],['Nombre',o.nombre],['Pago',o.pago==='efectivo'?'Efectivo':'Transferencia'],['Dirección',o.direccion]].map(([k,v]) =>
+            h('div', { key:k, style:{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'7px 0', borderBottom:'1px solid #ebebeb' } },
+              h('span', { style:{ color:GRAY, flexShrink:0, marginRight:12, fontWeight:500 } }, k),
+              h('span', { style:{ fontWeight:700, textAlign:'right', wordBreak:'break-word', maxWidth:'58%' } }, v)
             )
           )
         ),
-        h(PrimaryBtn, { onClick: () => setScreen('home'), full: false },
-          h(Icon, { name: 'home', sz: 18 }), 'Volver al inicio')
+        h(Btn, { onClick:goHome, full:false }, h(Icon, { name:'home', sz:18 }), 'Volver al inicio')
       )
     );
   }
 
-  /* ════════════════════════════════════════════
-     SCREEN: ADMIN LOGIN
-  ════════════════════════════════════════════ */
-  if (screen === 'adminLogin') return h('div', { style: { paddingBottom: 32 } },
-    h(BackBar, { onBack: () => setScreen('home'), title: 'Acceso administrador' }),
-    h('div', { style: { maxWidth: 300, margin: '2rem auto', textAlign: 'center' } },
-      h('div', { style: { width: 70, height: 70, borderRadius: '50%', background: '#fafafa', border: '1.5px solid #f0f0f0', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' } },
-        h(Icon, { name: 'lock', sz: 34, style: { color: GRAY } })),
-      h('div', { style: { fontSize: 20, fontWeight: 800, marginBottom: 6 } }, 'Panel de administrador'),
-      h('p', { style: { fontSize: 13, color: GRAY, margin: '0 0 26px', lineHeight: 1.6 } }, 'Ingresa el PIN de 4 dígitos.'),
+  /* ════════════════════════
+     ADMIN LOGIN
+  ════════════════════════ */
+  if (screen === 'adminLogin') return h('div', { style:{ paddingBottom:32 } },
+    h(BackBar, { onBack:goHome, title:'Acceso administrador' }),
+    h('div', { style:{ maxWidth:300, margin:'2rem auto', textAlign:'center' } },
+      h('div', { style:{ width:70, height:70, borderRadius:'50%', background:'#fafafa', border:'1.5px solid #f0f0f0', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 18px' } },
+        h(Icon, { name:'lock', sz:34, style:{ color:GRAY } })),
+      h('div', { style:{ fontSize:20, fontWeight:800, marginBottom:6 } }, 'Panel de administrador'),
+      h('p', { style:{ fontSize:13, color:GRAY, margin:'0 0 26px', lineHeight:1.6 } }, 'Ingresa el PIN de 4 dígitos.'),
       h('input', {
-        ref: pinRef,
-        type: 'password',
-        value: pin,
-        onChange: e => { setPin(e.target.value.slice(0, 4)); setPinErr(false); },
-        onKeyDown: e => e.key === 'Enter' && doLogin(),
-        placeholder: '••••',
-        maxLength: 4,
-        inputMode: 'numeric',
-        style: { textAlign: 'center', fontSize: 34, letterSpacing: 18, marginBottom: 14, fontWeight: 700 },
+        ref:pinRef, type:'password', value:pin,
+        onChange:e => { setPin(e.target.value.slice(0,4)); setPinErr(false); },
+        onKeyDown:e => e.key==='Enter' && doLogin(),
+        placeholder:'••••', maxLength:4, inputMode:'numeric',
+        style:{ textAlign:'center', fontSize:34, letterSpacing:18, marginBottom:14, fontWeight:700 },
       }),
-      pinErr && h('p', { style: { fontSize: 13, color: '#C62828', margin: '0 0 14px', fontWeight: 600 } },
-        h(Icon, { name: 'alert-circle', sz: 14, style: { verticalAlign: -2, marginRight: 3 } }), 'PIN incorrecto. Inténtalo de nuevo.'),
-      h(PrimaryBtn, { onClick: doLogin }, h(Icon, { name: 'login', sz: 18 }), 'Ingresar')
+      pinErr && h('p', { style:{ fontSize:13, color:'#C62828', margin:'0 0 14px', fontWeight:600 } },
+        h(Icon, { name:'alert-circle', sz:14, style:{ verticalAlign:-2, marginRight:3 } }), 'PIN incorrecto. Inténtalo de nuevo.'),
+      h(Btn, { onClick:doLogin }, h(Icon, { name:'login', sz:18 }), 'Ingresar')
     )
   );
 
-  /* ════════════════════════════════════════════
-     SCREEN: ADMIN DASHBOARD
-  ════════════════════════════════════════════ */
+  /* ════════════════════════
+     ADMIN DASHBOARD
+  ════════════════════════ */
   if (screen === 'admin') {
 
-    /* ── Product form (add / edit) ── */
+    /* ─ Formulario agregar / editar producto ─ */
     if (editId !== null) {
       const isNew = editId === 'new';
-      return h('div', { style: { paddingBottom: 32 } },
-        h(BackBar, {
-          onBack: cancelEdit,
-          title: isNew ? 'Nuevo producto' : 'Editar producto',
-        }),
+      return h('div', { style:{ paddingBottom:32 } },
+        h(BackBar, { onBack:cancelEdit, title:isNew ? 'Nuevo producto' : 'Editar producto' }),
 
         /* ── Selector de imagen desde galería ── */
-        h('div', { style: { marginBottom: 18 } },
+        h('div', { style:{ marginBottom:20 } },
 
-          /* Preview / tap-to-change */
+          /* Área de preview / toque para cambiar */
           h('div', {
             onClick: pickImage,
-            style: {
-              height: 200, borderRadius: 14, overflow: 'hidden',
-              background: '#f5f5f5', border: '2px dashed #e0e0e0',
-              display: 'flex', flexDirection: 'column',
-              alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', position: 'relative',
-              transition: 'border-color 0.15s',
+            style:{
+              height:200, borderRadius:14, overflow:'hidden',
+              background:'#f5f5f5', border:'2px dashed #e0e0e0',
+              display:'flex', flexDirection:'column', alignItems:'center', justifyContent:'center',
+              cursor:'pointer', position:'relative',
             }
           },
-            /* Hidden real file input */
+            /* input file oculto */
             h('input', {
-              ref: imgInputRef,
-              type: 'file',
-              accept: 'image/*',
-              capture: false,         // abre galería, no cámara directamente
-              onChange: onImgPicked,
-              style: { display: 'none' },
+              ref:imgInputRef, type:'file', accept:'image/*',
+              onChange:onImgPicked, style:{ display:'none' },
             }),
 
-            prodForm.imagen && !imgLoading
-              ? h('img', {
-                  key: prodForm.imagen.slice(-40),  // key único para forzar re-render
-                  src: prodForm.imagen,
-                  alt: 'Vista previa',
-                  style: { width: '100%', height: '100%', objectFit: 'cover' },
-                })
-              : imgLoading
-                ? h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 } },
-                    h('div', { style: {
-                        width: 36, height: 36, borderRadius: '50%',
-                        border: `3px solid ${B}`, borderTopColor: 'transparent',
-                        animation: 'spin 0.8s linear infinite',
-                      }
-                    }),
-                    h('span', { style: { fontSize: 13, color: GRAY } }, 'Cargando imagen...')
-                  )
-                : h('div', { style: { display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10 } },
-                    h('div', { style: { width: 56, height: 56, borderRadius: '50%', background: BL, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
-                      h(Icon, { name: 'photo-plus', sz: 28, style: { color: B } })),
-                    h('span', { style: { fontSize: 14, fontWeight: 700, color: B } }, 'Seleccionar imagen'),
-                    h('span', { style: { fontSize: 12, color: '#aaa' } }, 'Toca para abrir tu galería')
+            /* Estados: cargando / con imagen / sin imagen */
+            imgLoading
+              ? h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 } },
+                  h('div', { style:{ width:36, height:36, borderRadius:'50%', border:`3px solid ${B}`, borderTopColor:'transparent', animation:'spin .8s linear infinite' } }),
+                  h('span', { style:{ fontSize:13, color:GRAY } }, 'Cargando imagen...')
+                )
+              : prodForm.imagen
+                ? h('img', { key:prodForm.imagen.slice(-30), src:prodForm.imagen, alt:'Vista previa', style:{ width:'100%', height:'100%', objectFit:'cover' } })
+                : h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 } },
+                    h('div', { style:{ width:60, height:60, borderRadius:'50%', background:BL, display:'flex', alignItems:'center', justifyContent:'center' } },
+                      h(Icon, { name:'photo-plus', sz:30, style:{ color:B } })),
+                    h('span', { style:{ fontSize:14, fontWeight:700, color:B } }, 'Seleccionar imagen'),
+                    h('span', { style:{ fontSize:12, color:'#aaa' } }, 'Toca para abrir tu galería')
                   ),
 
-            /* Overlay "cambiar" cuando ya hay imagen */
-            prodForm.imagen && !imgLoading && h('div', {
-              style: {
-                position: 'absolute', bottom: 0, left: 0, right: 0,
-                background: 'rgba(0,0,0,0.45)', padding: '8px',
-                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              }
+            /* Overlay "Cambiar" cuando ya hay foto */
+            (!imgLoading && prodForm.imagen) && h('div', {
+              style:{ position:'absolute', bottom:0, left:0, right:0, background:'rgba(0,0,0,.45)', padding:'8px', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }
             },
-              h(Icon, { name: 'pencil', sz: 14, style: { color: '#fff' } }),
-              h('span', { style: { fontSize: 13, color: '#fff', fontWeight: 600 } }, 'Cambiar imagen')
+              h(Icon, { name:'pencil', sz:14, style:{ color:'#fff' } }),
+              h('span', { style:{ fontSize:13, color:'#fff', fontWeight:600 } }, 'Cambiar imagen')
             )
           ),
 
-          /* Botones: Galería + Quitar */
-          h('div', { style: { display: 'flex', gap: 8, marginTop: 8 } },
+          /* Botones secundarios */
+          h('div', { style:{ display:'flex', gap:8, marginTop:10 } },
             h('button', {
-              onClick: pickImage,
-              style: {
-                flex: 1, padding: '11px', borderRadius: 10,
-                border: `1.5px solid ${B}`, background: BL,
-                color: BD, fontWeight: 700, fontSize: 13,
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-              }
-            },
-              h(Icon, { name: 'photo', sz: 16 }), 'Abrir galería'
-            ),
+              onClick:pickImage,
+              style:{ flex:1, padding:'11px', borderRadius:10, border:`1.5px solid ${B}`, background:BL, color:BD, fontWeight:700, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:6 },
+            }, h(Icon, { name:'photo', sz:16 }), 'Abrir galería'),
+
             prodForm.imagen && h('button', {
-              onClick: () => setProdForm(f => ({ ...f, imagen: '' })),
-              style: {
-                padding: '11px 14px', borderRadius: 10,
-                border: '1.5px solid #e0e0e0', background: '#fff',
-                color: GRAY, fontWeight: 600, fontSize: 13,
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
-              }
-            },
-              h(Icon, { name: 'x', sz: 15 }), 'Quitar'
-            )
+              onClick: e => { e.stopPropagation(); setProdForm(f => ({ ...f, imagen:'' })); },
+              style:{ padding:'11px 14px', borderRadius:10, border:'1.5px solid #e0e0e0', background:'#fff', color:GRAY, fontWeight:600, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:5 },
+            }, h(Icon, { name:'x', sz:15 }), 'Quitar')
           )
         ),
 
         /* ── Campos de texto ── */
-        h('div', { style: { display: 'flex', flexDirection: 'column', gap: 16 } },
+        h('div', { style:{ display:'flex', flexDirection:'column', gap:16 } },
 
-          h(Field, { label: 'Nombre del producto', icon: 'tag', err: prodErrs.producto },
-            h('input', {
-              type: 'text',
-              value: prodForm.producto,
-              onChange: e => pf('producto', e.target.value),
-              placeholder: 'Ej. Frape de chocolate',
-            })
+          h(Field, { label:'Nombre del producto', icon:'tag', err:prodErrs.producto },
+            h('input', { type:'text', value:prodForm.producto, onChange:e => pf('producto',e.target.value), placeholder:'Ej. Frape de chocolate' })
           ),
 
-          h('div', { style: { display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 } },
-            h(Field, { label: 'Categoría', icon: 'layout-grid', err: prodErrs.categoria },
+          h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 } },
+            h(Field, { label:'Categoría', icon:'layout-grid', err:prodErrs.categoria },
               h('div', null,
-                h('input', {
-                  type: 'text', list: 'admin-cats',
-                  value: prodForm.categoria,
-                  onChange: e => pf('categoria', e.target.value),
-                  placeholder: 'Ej. Frape',
-                }),
-                h('datalist', { id: 'admin-cats' }, adminCats.map(c => h('option', { key: c, value: c })))
+                h('input', { type:'text', list:'admin-cats', value:prodForm.categoria, onChange:e => pf('categoria',e.target.value), placeholder:'Ej. Frape' }),
+                h('datalist', { id:'admin-cats' }, adminCats.map(c => h('option', { key:c, value:c })))
               )
             ),
-            h(Field, { label: 'Precio (MXN)', icon: 'cash', err: prodErrs.precio },
-              h('input', {
-                type: 'number',
-                value: prodForm.precio,
-                onChange: e => pf('precio', e.target.value),
-                placeholder: '35', min: 1, step: 1,
-              })
+            h(Field, { label:'Precio (MXN)', icon:'cash', err:prodErrs.precio },
+              h('input', { type:'number', value:prodForm.precio, onChange:e => pf('precio',e.target.value), placeholder:'35', min:1, step:1 })
             )
           ),
 
-          h(Field, { label: 'Descripción / Ingredientes', icon: 'align-left', err: prodErrs.descripcion },
-            h('textarea', {
-              value: prodForm.descripcion,
-              onChange: e => pf('descripcion', e.target.value),
-              placeholder: 'Describe el producto, ingredientes, presentación...',
-              rows: 4,
-            })
+          h(Field, { label:'Descripción / Ingredientes', icon:'align-left', err:prodErrs.descripcion },
+            h('textarea', { value:prodForm.descripcion, onChange:e => pf('descripcion',e.target.value), placeholder:'Describe el producto, ingredientes, presentación...', rows:4 })
           )
         ),
-          h(GhostBtn, { onClick: cancelEdit, full: false }, 'Cancelar'),
-          h('div', { style: { flex: 1 } },
-            h(PrimaryBtn, { onClick: saveProd },
-              h(Icon, { name: isNew ? 'plus' : 'device-floppy', sz: 18 }),
-              isNew ? 'Agregar producto' : 'Guardar cambios'))
+
+        /* ── Botones de acción ── */
+        h('div', { style:{ display:'flex', gap:10, marginTop:24 } },
+          h(Btn, { onClick:cancelEdit, color:'#fff', textColor:GRAY, border:'1.5px solid #e0e0e0', full:false }, 'Cancelar'),
+          h('div', { style:{ flex:1 } },
+            h(Btn, { onClick:saveProd },
+              h(Icon, { name:isNew?'plus':'device-floppy', sz:18 }),
+              isNew ? 'Agregar producto' : 'Guardar cambios'
+            )
+          )
         )
-      );
+      ); // end edit form return
     }
 
-    /* ── Delete confirmation ── */
+    /* ─ Confirmación de eliminar ─ */
     if (delId !== null) {
       const dp = products.find(p => p.id === delId);
-      return h('div', { style: { paddingBottom: 32 } },
-        h(BackBar, { onBack: () => setDelId(null), title: 'Eliminar producto' }),
-        h('div', { style: { padding: '2rem 0', textAlign: 'center' } },
-          h('div', { style: { width: 68, height: 68, borderRadius: '50%', background: '#FEECEC', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 18px' } },
-            h(Icon, { name: 'trash', sz: 34, style: { color: '#A32D2D' } })),
-          h('div', { style: { fontSize: 20, fontWeight: 800, marginBottom: 10 } }, 'Eliminar producto'),
-          h('p', { style: { fontSize: 14, color: GRAY, margin: '0 auto 28px', maxWidth: 300, lineHeight: 1.7 } },
+      return h('div', { style:{ paddingBottom:32 } },
+        h(BackBar, { onBack:() => setDelId(null), title:'Eliminar producto' }),
+        h('div', { style:{ padding:'2rem 0', textAlign:'center' } },
+          h('div', { style:{ width:68, height:68, borderRadius:'50%', background:'#FEECEC', display:'flex', alignItems:'center', justifyContent:'center', margin:'0 auto 18px' } },
+            h(Icon, { name:'trash', sz:34, style:{ color:'#A32D2D' } })),
+          h('div', { style:{ fontSize:20, fontWeight:800, marginBottom:10 } }, 'Eliminar producto'),
+          h('p', { style:{ fontSize:14, color:GRAY, margin:'0 auto 28px', maxWidth:300, lineHeight:1.7 } },
             '¿Seguro que deseas eliminar ', h('strong', null, dp?.producto), '? Esta acción no se puede deshacer.'),
-          h('div', { style: { display: 'flex', gap: 12 } },
-            h(GhostBtn, { onClick: () => setDelId(null), full: false }, 'Cancelar'),
-            h('div', { style: { flex: 1 } },
-              h(DangerBtn, { onClick: deleteProd, full: true }, h(Icon, { name: 'trash', sz: 18 }), 'Sí, eliminar'))
+          h('div', { style:{ display:'flex', gap:12 } },
+            h(Btn, { onClick:() => setDelId(null), color:'#fff', textColor:GRAY, border:'1.5px solid #e0e0e0', full:false }, 'Cancelar'),
+            h('div', { style:{ flex:1 } },
+              h(Btn, { onClick:deleteProd, color:'#A32D2D' }, h(Icon, { name:'trash', sz:18 }), 'Sí, eliminar')
+            )
           )
         )
       );
     }
 
-    /* ── Admin main view ── */
-    return h('div', { style: { paddingBottom: 32 } },
-      /* Admin header */
-      h('div', { style: { display: 'flex', alignItems: 'center', gap: 12, padding: '16px 0', borderBottom: '1px solid #f0f0f0', marginBottom: 18 } },
-        h('div', { style: { width: 38, height: 38, borderRadius: 10, background: B, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
-          h(Icon, { name: 'shield', sz: 20, style: { color: '#fff' } })),
-        h('span', { style: { fontSize: 20, fontWeight: 800, flex: 1 } }, 'Panel Admin'),
+    /* ─ Vista principal del admin ─ */
+    return h('div', { style:{ paddingBottom:32 } },
+
+      /* Header */
+      h('div', { style:{ display:'flex', alignItems:'center', gap:12, padding:'16px 0', borderBottom:'1px solid #f0f0f0', marginBottom:18 } },
+        h('div', { style:{ width:38, height:38, borderRadius:10, background:B, display:'flex', alignItems:'center', justifyContent:'center' } },
+          h(Icon, { name:'shield', sz:20, style:{ color:'#fff' } })),
+        h('span', { style:{ fontSize:20, fontWeight:800, flex:1 } }, 'Panel Admin'),
         h('button', {
-          onClick: () => setScreen('home'),
-          style: { fontSize: 13, padding: '7px 14px', borderRadius: 9, border: '1.5px solid #e8e8e8', background: 'none', cursor: 'pointer', color: GRAY, fontWeight: 500 },
+          onClick:goHome,
+          style:{ fontSize:13, padding:'7px 14px', borderRadius:9, border:'1.5px solid #e8e8e8', background:'none', cursor:'pointer', color:GRAY, fontWeight:500 },
         }, 'Salir')
       ),
 
       /* Stats */
-      h('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 10, marginBottom: 20 } },
+      h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:20 } },
         [
-          { label: 'Pedidos',   val: orders.length,                                        icon: 'receipt' },
-          { label: 'Ventas',    val: mxn(orders.reduce((s, o) => s + o.total, 0)),          icon: 'cash' },
-          { label: 'Productos', val: products.length,                                       icon: 'package' },
-        ].map(s => h('div', { key: s.label, style: { background: '#fafafa', borderRadius: 12, padding: '11px 12px', border: '1px solid #f0f0f0' } },
-          h('div', { style: { fontSize: 11, color: GRAY, marginBottom: 4, fontWeight: 500 } },
-            h(Icon, { name: s.icon, sz: 12, style: { verticalAlign: -1, marginRight: 3 } }), s.label),
-          h('div', { style: { fontSize: 19, fontWeight: 800 } }, s.val)
+          { label:'Pedidos',   val:orders.length,                                       icon:'receipt' },
+          { label:'Ventas',    val:mxn(orders.reduce((s,o) => s+o.total, 0)),            icon:'cash'    },
+          { label:'Productos', val:products.length,                                      icon:'package' },
+        ].map(s => h('div', { key:s.label, style:{ background:'#fafafa', borderRadius:12, padding:'11px 12px', border:'1px solid #f0f0f0' } },
+          h('div', { style:{ fontSize:11, color:GRAY, marginBottom:4, fontWeight:500 } },
+            h(Icon, { name:s.icon, sz:12, style:{ verticalAlign:-1, marginRight:3 } }), s.label),
+          h('div', { style:{ fontSize:19, fontWeight:800 } }, s.val)
         ))
       ),
 
       /* Tabs */
-      h('div', { style: { display: 'flex', border: '1.5px solid #ebebeb', borderRadius: 12, overflow: 'hidden', marginBottom: 18 } },
-        [{ k: 'pedidos', label: 'Pedidos', icon: 'receipt' }, { k: 'productos', label: 'Catálogo', icon: 'package' }].map(t =>
+      h('div', { style:{ display:'flex', border:'1.5px solid #ebebeb', borderRadius:12, overflow:'hidden', marginBottom:18 } },
+        [{ k:'pedidos', label:'Pedidos', icon:'receipt' },{ k:'productos', label:'Catálogo', icon:'package' }].map(t =>
           h('button', {
-            key: t.k, onClick: () => setAdminTab(t.k),
-            style: {
-              flex: 1, padding: '12px',
-              background: adminTab === t.k ? B : '#fff',
-              color: adminTab === t.k ? '#fff' : GRAY,
-              border: 'none', cursor: 'pointer',
-              fontSize: 14, fontWeight: 700,
-              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 7,
-              transition: 'background 0.15s',
-            }
-          }, h(Icon, { name: t.icon, sz: 16 }), t.label)
+            key:t.k, onClick:() => setAdminTab(t.k),
+            style:{ flex:1, padding:'12px', background:adminTab===t.k?B:'#fff', color:adminTab===t.k?'#fff':GRAY, border:'none', cursor:'pointer', fontSize:14, fontWeight:700, display:'flex', alignItems:'center', justifyContent:'center', gap:7 },
+          }, h(Icon, { name:t.icon, sz:16 }), t.label)
         )
       ),
 
-      /* ─ TAB: PEDIDOS ─ */
+      /* Tab: Pedidos */
       adminTab === 'pedidos' && (
         orders.length === 0
-          ? h('div', { style: { textAlign: 'center', padding: '3rem 1rem' } },
-              h(Icon, { name: 'inbox', sz: 52, style: { color: '#ddd', display: 'block', margin: '0 auto 12px' } }),
-              h('div', { style: { fontSize: 15, color: GRAY } }, 'Aún no hay pedidos'))
+          ? h('div', { style:{ textAlign:'center', padding:'3rem 1rem' } },
+              h(Icon, { name:'inbox', sz:52, style:{ color:'#ddd', display:'block', margin:'0 auto 12px' } }),
+              h('div', { style:{ fontSize:15, color:GRAY } }, 'Aún no hay pedidos'))
           : h('div', null, orders.map(o =>
-              h('div', { key: o.id, style: { background: '#fff', border: '1px solid #efefef', borderRadius: 14, padding: '13px 15px', marginBottom: 10 } },
-                h('div', { style: { display: 'flex', justifyContent: 'space-between', marginBottom: 6 } },
-                  h('span', { style: { fontSize: 16, fontWeight: 800 } }, o.nombre),
-                  h('span', { style: { fontSize: 16, fontWeight: 800, color: B } }, mxn(o.total))
+              h('div', { key:o.id, style:{ background:'#fff', border:'1px solid #efefef', borderRadius:14, padding:'13px 15px', marginBottom:10 } },
+                h('div', { style:{ display:'flex', justifyContent:'space-between', marginBottom:6 } },
+                  h('span', { style:{ fontSize:16, fontWeight:800 } }, o.nombre),
+                  h('span', { style:{ fontSize:16, fontWeight:800, color:B } }, mxn(o.total))
                 ),
-                h('div', { style: { fontSize: 13, color: GRAY, marginBottom: 3 } },
-                  h(Icon, { name: 'package', sz: 13, style: { verticalAlign: -2, marginRight: 4 } }),
-                  o.producto, ' × ', o.cant),
-                h('div', { style: { fontSize: 13, color: GRAY, marginBottom: 3 } },
-                  h(Icon, { name: 'map-pin', sz: 13, style: { verticalAlign: -2, marginRight: 4 } }), o.direccion),
-                h('div', { style: { display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#bbb', marginTop: 8, paddingTop: 8, borderTop: '1px solid #f5f5f5' } },
-                  h('span', null, h(Icon, { name: 'cash', sz: 12, style: { verticalAlign: -1, marginRight: 3 } }), o.pago === 'efectivo' ? 'Efectivo' : 'Transferencia'),
+                h('div', { style:{ fontSize:13, color:GRAY, marginBottom:3 } }, h(Icon, { name:'package', sz:13, style:{ verticalAlign:-2, marginRight:4 } }), o.producto,' × ',o.cant),
+                h('div', { style:{ fontSize:13, color:GRAY, marginBottom:3 } }, h(Icon, { name:'map-pin', sz:13, style:{ verticalAlign:-2, marginRight:4 } }), o.direccion),
+                h('div', { style:{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#bbb', marginTop:8, paddingTop:8, borderTop:'1px solid #f5f5f5' } },
+                  h('span', null, h(Icon, { name:'cash', sz:12, style:{ verticalAlign:-1, marginRight:3 } }), o.pago==='efectivo'?'Efectivo':'Transferencia'),
                   h('span', null, o.fecha)
                 )
               )
             ))
       ),
 
-      /* ─ TAB: CATÁLOGO ─ */
+      /* Tab: Catálogo */
       adminTab === 'productos' && h('div', null,
-        /* Add button */
         h('button', {
-          onClick: startNew,
-          style: {
-            width: '100%', padding: '13px',
-            background: BL, color: BD,
-            border: `2px dashed ${B}`,
-            borderRadius: 12, fontSize: 14, fontWeight: 700,
-            cursor: 'pointer', display: 'flex',
-            alignItems: 'center', justifyContent: 'center', gap: 8,
-            marginBottom: 12,
-          }
-        }, h(Icon, { name: 'plus', sz: 18 }), 'Agregar nuevo producto'),
+          onClick:startNew,
+          style:{ width:'100%', padding:'13px', background:BL, color:BD, border:`2px dashed ${B}`, borderRadius:12, fontSize:14, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:8, marginBottom:12 },
+        }, h(Icon, { name:'plus', sz:18 }), 'Agregar nuevo producto'),
 
-        /* Product list */
         products.map(p => h('div', {
-          key: p.id,
-          style: { background: '#fff', border: '1px solid #efefef', borderRadius: 14, padding: '10px 12px', marginBottom: 10, display: 'flex', alignItems: 'center', gap: 12 },
+          key:p.id,
+          style:{ background:'#fff', border:'1px solid #efefef', borderRadius:14, padding:'10px 12px', marginBottom:10, display:'flex', alignItems:'center', gap:12 },
         },
-          /* Thumbnail */
-          h('div', { style: { width: 58, height: 58, borderRadius: 10, background: '#f5f5f5', overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' } },
-            h(ProductImg, { src: p.imagen, id: p.id, imgErrs, setImgErrs, height: 58, fallbackIcon: p.categoria === 'Frape' ? 'cup' : 'snowflake' })
+          h('div', { style:{ width:58, height:58, borderRadius:10, background:'#f5f5f5', overflow:'hidden', flexShrink:0, display:'flex', alignItems:'center', justifyContent:'center' } },
+            h(ProductImg, { src:p.imagen, id:p.id, imgErrs, setImgErrs, height:58, icon:fallback(p.categoria) })
           ),
-          /* Info */
-          h('div', { style: { flex: 1, minWidth: 0 } },
-            h('div', { style: { fontSize: 11, color: '#aaa', marginBottom: 1 } }, p.categoria),
-            h('div', { style: { fontSize: 14, fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', color: '#1a1a1a' } }, p.producto),
-            h('div', { style: { fontSize: 14, color: B, fontWeight: 800, marginTop: 2 } }, mxn(p.precio))
+          h('div', { style:{ flex:1, minWidth:0 } },
+            h('div', { style:{ fontSize:11, color:'#aaa', marginBottom:1 } }, p.categoria),
+            h('div', { style:{ fontSize:14, fontWeight:700, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' } }, p.producto),
+            h('div', { style:{ fontSize:14, color:B, fontWeight:800, marginTop:2 } }, mxn(p.precio))
           ),
-          /* Actions */
-          h('div', { style: { display: 'flex', gap: 7, flexShrink: 0 } },
+          h('div', { style:{ display:'flex', gap:7, flexShrink:0 } },
             h('button', {
-              onClick: () => startEdit(p),
-              'aria-label': 'Editar',
-              style: { width: 38, height: 38, border: '1.5px solid #e0e0e0', borderRadius: 9, background: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: GRAY },
-            }, h(Icon, { name: 'pencil', sz: 17 })),
+              onClick:() => startEdit(p), 'aria-label':'Editar',
+              style:{ width:38, height:38, border:'1.5px solid #e0e0e0', borderRadius:9, background:'#fff', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:GRAY },
+            }, h(Icon, { name:'pencil', sz:17 })),
             h('button', {
-              onClick: () => setDelId(p.id),
-              'aria-label': 'Eliminar',
-              style: { width: 38, height: 38, border: '1.5px solid #F7C1C1', borderRadius: 9, background: '#FFF5F5', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#A32D2D' },
-            }, h(Icon, { name: 'trash', sz: 17 }))
+              onClick:() => setDelId(p.id), 'aria-label':'Eliminar',
+              style:{ width:38, height:38, border:'1.5px solid #F7C1C1', borderRadius:9, background:'#FFF5F5', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', color:'#A32D2D' },
+            }, h(Icon, { name:'trash', sz:17 }))
           )
         ))
       )
-    );
-  }
+    ); // end admin main return
+  } // end admin screen
 
   return null;
 }
 
-/* ─── BOOT ──────────────────────────────────────────── */
 const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(h(App));
 
-/* ─── SERVICE WORKER ────────────────────────────────── */
 if ('serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('sw.js').catch(() => {});
-  });
+  window.addEventListener('load', () => navigator.serviceWorker.register('sw.js').catch(() => {}));
 }
 </script>
 </body>
