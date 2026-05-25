@@ -17,7 +17,7 @@
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
     html { height: 100%; -webkit-tap-highlight-color: transparent; }
     body { height: 100%; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f7f7f5; color: #1a1a1a; -webkit-font-smoothing: antialiased; }
-    #root { max-width: 480px; margin: 0 auto; background: #fff; min-height: 100%; padding: 0 16px; }
+    #root { max-width: 520px; margin: 0 auto; background: #fff; min-height: 100%; padding: 0 16px; }
     input, textarea, select, button { font-family: inherit; }
     input, textarea, select { font-size: 15px; padding: 11px 14px; border-radius: 10px; border: 1.5px solid #e0e0e0; background: #fff; color: #1a1a1a; width: 100%; transition: border-color .15s, box-shadow .15s; -webkit-appearance: none; appearance: none; }
     input:focus, textarea:focus, select:focus { outline: none; border-color: #E8620A; box-shadow: 0 0 0 3px rgba(232,98,10,.13); }
@@ -31,6 +31,40 @@
     @keyframes popIn   { 0% { transform: scale(.7); opacity: 0; } 80% { transform: scale(1.12); } 100% { transform: scale(1); opacity: 1; } }
     .skel { background: linear-gradient(90deg,#f0f0f0 25%,#e8e8e8 50%,#f0f0f0 75%); background-size: 200% 100%; animation: shimmer 1.4s infinite; border-radius: 8px; }
     .fadein { animation: fadeIn .25s ease both; }
+
+    /* La app se ve igual en móvil y desktop: centrada a 480px */
+    .prod-grid { display: grid; gap: 12px; grid-template-columns: repeat(2,1fr); }
+    @media (min-width: 520px) { .prod-grid { grid-template-columns: repeat(3,1fr); } }
+    @media (min-width: 600px) {
+      html, body { height: 100%; }
+      body { display: flex; justify-content: center; background: #e8e8e5; }
+      #root { max-width: 480px; width: 100%; min-height: 100vh; box-shadow: 0 0 48px rgba(0,0,0,.14); }
+    }
+
+    /* Image picker label — native behaviour on all platforms */
+    .img-pick-label {
+      display: flex; flex-direction: column; align-items: center; justify-content: center;
+      height: 220px; border-radius: 14px; overflow: hidden;
+      background: #f5f5f5; border: 2px dashed #e0e0e0;
+      cursor: pointer; position: relative; transition: border-color .15s;
+      -webkit-user-select: none; user-select: none;
+    }
+    .img-pick-label:hover { border-color: #E8620A; }
+    .img-pick-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+      flex: 1; padding: 11px; border-radius: 10px;
+      border: 1.5px solid #E8620A; background: #FFF8F5; color: #B54C08;
+      font-weight: 700; font-size: 13px; cursor: pointer;
+      font-family: inherit; transition: background .15s;
+    }
+    .img-pick-btn:hover { background: #FFE8D6; }
+    .img-quit-btn {
+      display: inline-flex; align-items: center; justify-content: center; gap: 5px;
+      padding: 11px 14px; border-radius: 10px;
+      border: 1.5px solid #e0e0e0; background: #fff; color: #6B7280;
+      font-weight: 600; font-size: 13px; cursor: pointer; font-family: inherit;
+    }
+
     /* Floating cart button */
     #cart-fab {
       position: fixed; bottom: 24px; right: 16px; z-index: 100;
@@ -39,12 +73,12 @@
       display: flex; align-items: center; justify-content: center;
       cursor: pointer; transition: transform .15s;
     }
+    @media (min-width: 600px) { #cart-fab { right: calc(50% - 222px); } }
     #cart-fab:active { transform: scale(.93); }
     #cart-fab .badge {
       position: absolute; top: -2px; right: -2px;
       width: 22px; height: 22px; border-radius: 50%;
-      background: #1a1a1a; color: #fff;
-      font-size: 12px; font-weight: 800;
+      background: #1a1a1a; color: #fff; font-size: 12px; font-weight: 800;
       display: flex; align-items: center; justify-content: center;
       border: 2.5px solid #fff;
     }
@@ -212,7 +246,6 @@ function App() {
   const [savingProd, setSavingProd] = useState(false);
   const [statusSel,  setStatusSel]  = useState(null);
   const pinRef     = useRef(null);
-  const imgInputRef= useRef(null);
   const toastTimer = useRef(null);
 
   /* ── cart helpers ── */
@@ -331,8 +364,7 @@ function App() {
   const pf=(k,v)=>{ setProdForm(f=>({...f,[k]:v})); setProdErrs(e=>({...e,[k]:''})); };
   const bf=(k,v)=>{ setBuyForm(f=>({...f,[k]:v}));  setBuyErrs(e=>({...e,[k]:''})); };
 
-  /* ── image picker ── */
-  const pickImage = e=>{ e.stopPropagation(); imgInputRef.current?.click(); };
+  /* ── image picker — uses native <label htmlFor> approach, works on all browsers/devices ── */
   const onImgPicked = async e=>{
     const file=e.target.files?.[0]; if(!file) return;
     setImgLoading(true);
@@ -406,7 +438,7 @@ function App() {
       cats.map(c=>h('button',{key:c,onClick:()=>setCat(c),style:{padding:'7px 18px',borderRadius:24,border:'1.5px solid',borderColor:cat===c?B:'#e8e8e8',background:cat===c?BL:'#fff',color:cat===c?BD:GRAY,cursor:'pointer',fontSize:13,fontWeight:cat===c?700:400,whiteSpace:'nowrap',flexShrink:0}},c))
     ),
     /* product grid or skeletons */
-    h('div',{style:{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:12}},
+    h('div',{className:'prod-grid'},
       loadingP
         ? [1,2,3,4,5,6].map(k=>h(SkProd,{key:k}))
         : visible.map(p=>h('div',{key:p.id,onClick:()=>{setSel(p);setQty(1);setScreen('product');},className:'fadein',style:{background:'#fff',border:'1px solid #efefef',borderRadius:14,overflow:'hidden',cursor:'pointer'}},
@@ -600,36 +632,47 @@ function App() {
       const isNew=editId==='new';
       return h('div',{style:{paddingBottom:32}},
         h(BackBar,{onBack:cancelEdit,title:isNew?'Nuevo producto':'Editar producto'}),
-        /* image picker */
+        /* ── Image picker — input INSIDE label: única forma 100% compatible en todos los browsers ── */
         h('div',{style:{marginBottom:20}},
-          h('div',{onClick:pickImage,style:{height:200,borderRadius:14,overflow:'hidden',background:'#f5f5f5',border:'2px dashed #e0e0e0',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',cursor:'pointer',position:'relative'}},
-            h('input',{ref:imgInputRef,type:'file',accept:'image/*',onChange:onImgPicked,style:{display:'none'}}),
+          /* Preview / selector: el input vive DENTRO del label,
+             así el click en cualquier parte activa el diálogo nativo en celular y desktop */
+          h('label',{className:'img-pick-label'},
+            h('input',{type:'file',accept:'image/*',onChange:onImgPicked,style:{display:'none'}}),
             imgLoading
               ? h('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:10}},
                   h('div',{style:{width:36,height:36,borderRadius:'50%',border:`3px solid ${B}`,borderTopColor:'transparent',animation:'spin .8s linear infinite'}}),
                   h('span',{style:{fontSize:13,color:GRAY}},'Subiendo imagen...')
                 )
               : prodForm.imagen
-                ? h('img',{key:prodForm.imagen.slice(-30),src:prodForm.imagen,alt:'Vista previa',style:{width:'100%',height:'100%',objectFit:'cover'}})
+                ? h(React.Fragment,null,
+                    h('img',{key:prodForm.imagen.slice(-30),src:prodForm.imagen,alt:'Vista previa',style:{width:'100%',height:'100%',objectFit:'cover'}}),
+                    h('div',{style:{position:'absolute',bottom:0,left:0,right:0,background:'rgba(0,0,0,.45)',padding:'9px',display:'flex',alignItems:'center',justifyContent:'center',gap:6}},
+                      h(Icon,{name:'pencil',sz:15,style:{color:'#fff'}}),
+                      h('span',{style:{fontSize:13,color:'#fff',fontWeight:600}},'Clic/toca para cambiar imagen')
+                    )
+                  )
                 : h('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:10}},
-                    h('div',{style:{width:60,height:60,borderRadius:'50%',background:BL,display:'flex',alignItems:'center',justifyContent:'center'}},
+                    h('div',{style:{width:62,height:62,borderRadius:'50%',background:BL,display:'flex',alignItems:'center',justifyContent:'center'}},
                       h(Icon,{name:'photo-plus',sz:30,style:{color:B}})),
-                    h('span',{style:{fontSize:14,fontWeight:700,color:B}},'Seleccionar imagen'),
-                    h('span',{style:{fontSize:12,color:'#aaa'}},'Toca para abrir tu galería')
-                  ),
-            !imgLoading && prodForm.imagen && h('div',{style:{position:'absolute',bottom:0,left:0,right:0,background:'rgba(0,0,0,.42)',padding:'8px',display:'flex',alignItems:'center',justifyContent:'center',gap:6}},
-              h(Icon,{name:'pencil',sz:14,style:{color:'#fff'}}),
-              h('span',{style:{fontSize:13,color:'#fff',fontWeight:600}},'Cambiar imagen')
-            )
+                    h('span',{style:{fontSize:15,fontWeight:700,color:B}},'Seleccionar imagen'),
+                    h('span',{style:{fontSize:12,color:'#aaa'}},'Celular: galería  •  PC: explorador de archivos')
+                  )
           ),
+          /* Botones secundarios */
           h('div',{style:{display:'flex',gap:8,marginTop:10}},
-            h('button',{onClick:pickImage,style:{flex:1,padding:'11px',borderRadius:10,border:`1.5px solid ${B}`,background:BL,color:BD,fontWeight:700,fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:6}},
-              h(Icon,{name:'photo',sz:16}),' Abrir galería'),
-            prodForm.imagen && h('button',{onClick:e=>{e.stopPropagation();setProdForm(f=>({...f,imagen:''}));},style:{padding:'11px 14px',borderRadius:10,border:'1.5px solid #e0e0e0',background:'#fff',color:GRAY,fontWeight:600,fontSize:13,cursor:'pointer',display:'flex',alignItems:'center',justifyContent:'center',gap:5}},
-              h(Icon,{name:'x',sz:15}),' Quitar')
+            h('label',{className:'img-pick-btn'},
+              h('input',{type:'file',accept:'image/*',onChange:onImgPicked,style:{display:'none'}}),
+              h(Icon,{name:'photo',sz:16}),
+              prodForm.imagen ? 'Cambiar imagen' : 'Abrir galería / archivos'
+            ),
+            prodForm.imagen && h('button',{
+              type:'button',
+              onClick:()=>setProdForm(f=>({...f,imagen:''})),
+              className:'img-quit-btn',
+            }, h(Icon,{name:'x',sz:15}),' Quitar')
           ),
           sb && h('div',{style:{fontSize:11,color:'#2E7D32',marginTop:6,display:'flex',alignItems:'center',gap:4}},
-            h(Icon,{name:'cloud-upload',sz:12}),'Las imágenes se suben a Supabase Storage')
+            h(Icon,{name:'cloud-upload',sz:12}),' Las imágenes se suben a Supabase Storage')
         ),
         /* fields */
         h('div',{style:{display:'flex',flexDirection:'column',gap:16}},
