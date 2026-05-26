@@ -60,7 +60,7 @@ const GRAY = '#6B7280';
 const PIN  = '9999';
 
 /* ── URL del Apps Script de Google (déjalo vacío para modo solo-local) ── */
-const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbz35-PHBiDN_aZtTm3mf9x8dZPD49V28WPXjXICOhfy4UFPu6zju2RJ-DuqYEYAqaiKLA/exec'; // <- pega aquí tu URL después de publicar el script
+const SHEETS_URL = ''; // <- pega aquí tu URL después de publicar el script
 
 const INIT_PRODUCTS = [
   { id:1, producto:'Gomiboing de mango',   categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor mango con toppings a elegir añadidos.',        imagen:'https://images.unsplash.com/photo-1546173159-315724a31696?w=600&auto=format&fit=crop' },
@@ -203,46 +203,60 @@ function App() {
     try {
       const res = await fetch(SHEETS_URL + '?action=get', { cache:'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
-      const sheetsProds = await res.json();
-      if (!Array.isArray(sheetsProds) || sheetsProds.length === 0) {
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      if (!Array.isArray(data) || data.length === 0) {
         setSyncStatus('ok'); setSyncMsg('Hoja vacía — usando catálogo local'); return;
       }
-      /* Conserva imágenes base64 locales que no caben en Sheets */
+      /* Conserva imágenes base64 locales (no caben en Sheets) */
       const localCache = store.get('gomix_products', []);
-      const merged = sheetsProds.map(sp => {
+      const merged = data.map(sp => {
         const local = localCache.find(lp => String(lp.id) === String(sp.id));
         const img = (sp.imagen && !sp.imagen.startsWith('data:'))
-          ? sp.imagen
-          : (local?.imagen || '');
-        return { ...sp, precio:Number(sp.precio), imagen:img, id:sp.id || uid() };
+          ? sp.imagen : (local?.imagen || '');
+        return { ...sp, precio:Number(sp.precio), imagen:img };
       });
       setProducts(merged);
       setSyncStatus('ok');
       setSyncMsg('Sincronizado ' + new Date().toLocaleTimeString('es-MX'));
-    } catch {
+    } catch(err) {
       setSyncStatus('error');
-      setSyncMsg('Sin conexión — catálogo local activo');
+      setSyncMsg('Error de conexión — catálogo local activo');
     }
   };
 
-  /* Escribe todos los productos en Sheets (fire & forget con no-cors) */
-  const syncToSheets = async prods => {
+  /* Agrega o actualiza UN producto en Sheets via GET (evita CORS de POST) */
+  const upsertToSheets = async prod => {
     if (!SHEETS_URL) return;
     setSyncStatus('syncing');
-    /* Las imágenes base64 no se guardan en Sheets (límite de celda) */
-    const forSheets = prods.map(p => ({
-      ...p, imagen: (p.imagen?.startsWith('data:')) ? '' : (p.imagen || '')
-    }));
+    const p = { ...prod, imagen: prod.imagen?.startsWith('data:') ? '' : (prod.imagen||'') };
     try {
-      await fetch(SHEETS_URL, {
-        method:'POST', mode:'no-cors',
-        headers:{ 'Content-Type':'text/plain' },
-        body:JSON.stringify({ action:'save', products:forSheets }),
-      });
+      const url = SHEETS_URL + '?action=upsert&product=' + encodeURIComponent(JSON.stringify(p));
+      const res = await fetch(url, { cache:'no-store' });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
       setSyncStatus('ok');
       setSyncMsg('Guardado ' + new Date().toLocaleTimeString('es-MX'));
-    } catch {
-      setSyncStatus('error'); setSyncMsg('Error al guardar en Sheets');
+    } catch(err) {
+      setSyncStatus('error');
+      setSyncMsg('No se pudo guardar en Sheets — sí se guardó localmente');
+    }
+  };
+
+  /* Elimina UN producto de Sheets via GET */
+  const deleteFromSheets = async id => {
+    if (!SHEETS_URL) return;
+    setSyncStatus('syncing');
+    try {
+      const url = SHEETS_URL + '?action=delete&id=' + encodeURIComponent(String(id));
+      const res = await fetch(url, { cache:'no-store' });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      setSyncStatus('ok');
+      setSyncMsg('Eliminado ' + new Date().toLocaleTimeString('es-MX'));
+    } catch(err) {
+      setSyncStatus('error');
+      setSyncMsg('No se pudo eliminar en Sheets — sí se eliminó localmente');
     }
   };
 
@@ -287,22 +301,25 @@ function App() {
   const saveProd = () => {
     if (!validateProd()) return;
     const p = { ...prodForm, precio:Number(prodForm.precio) };
+    let saved;
     let newProducts;
     if (editId === 'new') {
-      newProducts = [...products, { ...p, id:uid() }];
+      saved = { ...p, id:uid() };
+      newProducts = [...products, saved];
     } else {
-      newProducts = products.map(x => x.id === editId ? { ...x, ...p } : x);
+      saved = { ...products.find(x => x.id === editId), ...p };
+      newProducts = products.map(x => x.id === editId ? saved : x);
       if (sel?.id === editId) setSel(s => ({ ...s, ...p }));
     }
     setProducts(newProducts);
-    syncToSheets(newProducts);
+    upsertToSheets(saved);
     setEditId(null);
   };
 
   const deleteProd = () => {
     const newProducts = products.filter(p => p.id !== delId);
     setProducts(newProducts);
-    syncToSheets(newProducts);
+    deleteFromSheets(delId);
     setDelId(null);
   };
 
