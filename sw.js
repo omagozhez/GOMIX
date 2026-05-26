@@ -1,5 +1,5 @@
-/* GOMIX Service Worker — v1.0 */
-const CACHE = 'gomix-v1';
+/* GOMIX Service Worker — v1.1 */
+const CACHE = 'gomix-v2';
 
 const APP_SHELL = [
   './',
