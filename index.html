@@ -59,6 +59,9 @@ const BD   = '#B54C08';
 const GRAY = '#6B7280';
 const PIN  = '9999';
 
+/* ── URL del Apps Script de Google (déjalo vacío para modo solo-local) ── */
+const SHEETS_URL = 'https://script.google.com/macros/s/AKfycbz35-PHBiDN_aZtTm3mf9x8dZPD49V28WPXjXICOhfy4UFPu6zju2RJ-DuqYEYAqaiKLA/exec'; // <- pega aquí tu URL después de publicar el script
+
 const INIT_PRODUCTS = [
   { id:1, producto:'Gomiboing de mango',   categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor mango con toppings a elegir añadidos.',        imagen:'https://images.unsplash.com/photo-1546173159-315724a31696?w=600&auto=format&fit=crop' },
   { id:2, producto:'Gomiboing de uva',     categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor uva con toppings a elegir añadidos.',          imagen:'https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=600&auto=format&fit=crop' },
@@ -181,11 +184,67 @@ function App() {
   });
 
   const [storageErr, setStorageErr] = useState(false);
+  const [syncStatus, setSyncStatus] = useState('idle'); // 'idle'|'loading'|'syncing'|'ok'|'error'
+  const [syncMsg,    setSyncMsg]    = useState('');
 
   useEffect(() => { if (store.set('gomix_products', products) === 'quota') setStorageErr(true); }, [products]);
   useEffect(() => { if (store.set('gomix_orders',   orders)   === 'quota') setStorageErr(true); }, [orders]);
   useEffect(() => { window.scrollTo(0, 0); }, [screen]);
   useEffect(() => { if (screen === 'adminLogin') setTimeout(() => pinRef.current?.focus(), 100); }, [screen]);
+
+  /* ── Google Sheets sync ──────────────────────────────────────────────── */
+
+  /* Carga el catálogo desde Sheets al montar la app */
+  useEffect(() => { if (SHEETS_URL) loadFromSheets(); }, []);
+
+  const loadFromSheets = async () => {
+    if (!SHEETS_URL) return;
+    setSyncStatus('loading'); setSyncMsg('');
+    try {
+      const res = await fetch(SHEETS_URL + '?action=get', { cache:'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const sheetsProds = await res.json();
+      if (!Array.isArray(sheetsProds) || sheetsProds.length === 0) {
+        setSyncStatus('ok'); setSyncMsg('Hoja vacía — usando catálogo local'); return;
+      }
+      /* Conserva imágenes base64 locales que no caben en Sheets */
+      const localCache = store.get('gomix_products', []);
+      const merged = sheetsProds.map(sp => {
+        const local = localCache.find(lp => String(lp.id) === String(sp.id));
+        const img = (sp.imagen && !sp.imagen.startsWith('data:'))
+          ? sp.imagen
+          : (local?.imagen || '');
+        return { ...sp, precio:Number(sp.precio), imagen:img, id:sp.id || uid() };
+      });
+      setProducts(merged);
+      setSyncStatus('ok');
+      setSyncMsg('Sincronizado ' + new Date().toLocaleTimeString('es-MX'));
+    } catch {
+      setSyncStatus('error');
+      setSyncMsg('Sin conexión — catálogo local activo');
+    }
+  };
+
+  /* Escribe todos los productos en Sheets (fire & forget con no-cors) */
+  const syncToSheets = async prods => {
+    if (!SHEETS_URL) return;
+    setSyncStatus('syncing');
+    /* Las imágenes base64 no se guardan en Sheets (límite de celda) */
+    const forSheets = prods.map(p => ({
+      ...p, imagen: (p.imagen?.startsWith('data:')) ? '' : (p.imagen || '')
+    }));
+    try {
+      await fetch(SHEETS_URL, {
+        method:'POST', mode:'no-cors',
+        headers:{ 'Content-Type':'text/plain' },
+        body:JSON.stringify({ action:'save', products:forSheets }),
+      });
+      setSyncStatus('ok');
+      setSyncMsg('Guardado ' + new Date().toLocaleTimeString('es-MX'));
+    } catch {
+      setSyncStatus('error'); setSyncMsg('Error al guardar en Sheets');
+    }
+  };
 
   const cats      = ['Todos', ...new Set(products.map(p => p.categoria).filter(Boolean))];
   const adminCats = [...new Set(products.map(p => p.categoria).filter(Boolean))];
@@ -228,16 +287,24 @@ function App() {
   const saveProd = () => {
     if (!validateProd()) return;
     const p = { ...prodForm, precio:Number(prodForm.precio) };
+    let newProducts;
     if (editId === 'new') {
-      setProducts(prev => [...prev, { ...p, id:uid() }]);
+      newProducts = [...products, { ...p, id:uid() }];
     } else {
-      setProducts(prev => prev.map(x => x.id === editId ? { ...x, ...p } : x));
+      newProducts = products.map(x => x.id === editId ? { ...x, ...p } : x);
       if (sel?.id === editId) setSel(s => ({ ...s, ...p }));
     }
+    setProducts(newProducts);
+    syncToSheets(newProducts);
     setEditId(null);
   };
 
-  const deleteProd = () => { setProducts(prev => prev.filter(p => p.id !== delId)); setDelId(null); };
+  const deleteProd = () => {
+    const newProducts = products.filter(p => p.id !== delId);
+    setProducts(newProducts);
+    syncToSheets(newProducts);
+    setDelId(null);
+  };
 
   /* field helpers */
   const pf = (key, val) => { setProdForm(f => ({ ...f, [key]:val })); setProdErrs(e => ({ ...e, [key]:'' })); };
@@ -576,6 +643,35 @@ function App() {
           h('p', { style:{ fontSize:13, color:'#7A4F00', lineHeight:1.5, margin:0 } },
             'El dispositivo no pudo guardar los últimos cambios porque el almacenamiento local está lleno. Elimina productos con imágenes pesadas o limpia el caché del navegador.')
         )
+      ),
+
+      /* Estado de sincronización con Google Sheets */
+      SHEETS_URL && h('div', {
+        style:{
+          display:'flex', alignItems:'center', gap:8,
+          padding:'9px 12px', borderRadius:10, marginBottom:14,
+          background: syncStatus==='error' ? '#FFF3E0' : syncStatus==='ok' ? '#F1F8E9' : '#F5F5F5',
+          border: `1px solid ${syncStatus==='error'?'#FFCC80':syncStatus==='ok'?'#C5E1A5':'#E0E0E0'}`,
+        }
+      },
+        h(Icon, {
+          name: syncStatus==='loading'||syncStatus==='syncing' ? 'loader-2' : syncStatus==='ok' ? 'check' : syncStatus==='error' ? 'wifi-off' : 'table',
+          sz:15,
+          style:{
+            color: syncStatus==='error'?'#E65100':syncStatus==='ok'?'#33691E':'#757575',
+            animation: (syncStatus==='loading'||syncStatus==='syncing') ? 'spin .8s linear infinite' : 'none',
+          }
+        }),
+        h('span', { style:{ fontSize:13, flex:1, fontWeight:500,
+          color: syncStatus==='error'?'#BF360C':syncStatus==='ok'?'#33691E':'#616161' } },
+          syncStatus==='loading' ? 'Cargando catálogo desde Google Sheets…' :
+          syncStatus==='syncing' ? 'Guardando en Google Sheets…' :
+          syncMsg || 'Google Sheets conectado'
+        ),
+        (syncStatus==='ok'||syncStatus==='error') && h('button', {
+          onClick: loadFromSheets,
+          style:{ fontSize:12, color:'#1565C0', background:'none', border:'none', cursor:'pointer', fontWeight:700, padding:'2px 6px', flexShrink:0 }
+        }, h(Icon, { name:'refresh', sz:13, style:{ verticalAlign:-2, marginRight:3 } }), 'Recargar')
       ),
 
       /* Stats */
