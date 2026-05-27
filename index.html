@@ -41,6 +41,16 @@
     img { display: block; }
     ::-webkit-scrollbar { width: 0; height: 0; }
     @keyframes spin { to { transform: rotate(360deg); } }
+    @keyframes slideUp { from { transform: translateY(20px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+    .toast {
+      position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+      background: #1a1a1a; color: #fff; padding: 12px 20px; border-radius: 10px;
+      font-size: 14px; font-weight: 500; max-width: 90%; text-align: center;
+      box-shadow: 0 8px 24px rgba(0,0,0,.2); z-index: 1000;
+      animation: slideUp .25s ease-out;
+    }
+    .toast.error { background: #B71C1C; }
+    .toast.success { background: #2E7D32; }
   </style>
 </head>
 <body>
@@ -49,8 +59,14 @@
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script>
 'use strict';
-const { useState, useEffect, useRef } = React;
+const { useState, useEffect, useRef, useCallback } = React;
 const h = React.createElement;
+
+/* ── CONFIGURACIÓN ─────────────────────────────
+   ⚠️  REEMPLAZA esta URL por la de tu Web App de Apps Script.
+       (Deploy → New deployment → Web app → termina en /exec)
+─────────────────────────────────────────────── */
+const API_URL = 'https://script.google.com/macros/s/AKfycbx87k0FvVTpxrCynrGFrSCkmDoTl67WHNk32Vb8JoKpn68ktx8dNF68EBRApjhPBJns/exec';
 
 /* ── CONSTANTS ─────────────────────────────── */
 const B    = '#E8620A';
@@ -59,29 +75,57 @@ const BD   = '#B54C08';
 const GRAY = '#6B7280';
 const PIN  = '9999';
 
-/* ── URL del Apps Script de Google (déjalo vacío para modo solo-local) ── */
-const SHEETS_URL = ''; // <- pega aquí tu URL después de publicar el script
-
 const INIT_PRODUCTS = [
-  { id:1, producto:'Gomiboing de mango',   categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor mango con toppings a elegir añadidos.',        imagen:'https://images.unsplash.com/photo-1546173159-315724a31696?w=600&auto=format&fit=crop' },
-  { id:2, producto:'Gomiboing de uva',     categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor uva con toppings a elegir añadidos.',          imagen:'https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=600&auto=format&fit=crop' },
-  { id:3, producto:'Gomiboing de fresa',   categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor fresa con toppings a elegir añadidos.',        imagen:'https://images.unsplash.com/photo-1553361371-9b22f78e8b1d?w=600&auto=format&fit=crop' },
-  { id:4, producto:'Gomiboing de guayaba', categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor guayaba con toppings a elegir añadidos.',      imagen:'https://images.unsplash.com/photo-1621955964441-c173e01c135b?w=600&auto=format&fit=crop' },
-  { id:5, producto:'Gomiboing de manzana', categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor manzana con toppings a elegir añadidos.',      imagen:'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=600&auto=format&fit=crop' },
-  { id:6, producto:'Frape de oreo',        categoria:'Frape',     precio:50, descripcion:'Cremoso frappé helado de galleta Oreo, decorado con jarabe de chocolate.', imagen:'https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&auto=format&fit=crop' },
-  { id:7, producto:'Frape de fresa',       categoria:'Frape',     precio:50, descripcion:'Suave frappé sabor fresa intensa, dulce y refrescante.',                   imagen:'https://images.unsplash.com/photo-1570197788417-0e82375c9371?w=600&auto=format&fit=crop' },
-  { id:8, producto:'Frape de cajeta',      categoria:'Frape',     precio:50, descripcion:'Frappé cremoso con el toque dulce y tradicional de la cajeta.',            imagen:'https://images.unsplash.com/photo-1534353436294-0dbd4bdac845?w=600&auto=format&fit=crop' },
+  { id:'init-1', producto:'Gomiboing de mango',   categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor mango con toppings a elegir añadidos.',        imagen:'https://images.unsplash.com/photo-1546173159-315724a31696?w=600&auto=format&fit=crop' },
+  { id:'init-2', producto:'Gomiboing de uva',     categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor uva con toppings a elegir añadidos.',          imagen:'https://images.unsplash.com/photo-1596461404969-9ae70f2830c1?w=600&auto=format&fit=crop' },
+  { id:'init-3', producto:'Gomiboing de fresa',   categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor fresa con toppings a elegir añadidos.',        imagen:'https://images.unsplash.com/photo-1553361371-9b22f78e8b1d?w=600&auto=format&fit=crop' },
+  { id:'init-4', producto:'Gomiboing de guayaba', categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor guayaba con toppings a elegir añadidos.',      imagen:'https://images.unsplash.com/photo-1621955964441-c173e01c135b?w=600&auto=format&fit=crop' },
+  { id:'init-5', producto:'Gomiboing de manzana', categoria:'Gomiboing', precio:35, descripcion:'Fresco Boing congelado sabor manzana con toppings a elegir añadidos.',      imagen:'https://images.unsplash.com/photo-1560806887-1e4cd0b6cbd6?w=600&auto=format&fit=crop' },
+  { id:'init-6', producto:'Frape de oreo',        categoria:'Frape',     precio:50, descripcion:'Cremoso frappé helado de galleta Oreo, decorado con jarabe de chocolate.', imagen:'https://images.unsplash.com/photo-1572490122747-3968b75cc699?w=600&auto=format&fit=crop' },
+  { id:'init-7', producto:'Frape de fresa',       categoria:'Frape',     precio:50, descripcion:'Suave frappé sabor fresa intensa, dulce y refrescante.',                   imagen:'https://images.unsplash.com/photo-1570197788417-0e82375c9371?w=600&auto=format&fit=crop' },
+  { id:'init-8', producto:'Frape de cajeta',      categoria:'Frape',     precio:50, descripcion:'Frappé cremoso con el toque dulce y tradicional de la cajeta.',            imagen:'https://images.unsplash.com/photo-1534353436294-0dbd4bdac845?w=600&auto=format&fit=crop' },
 ];
 
 const EMPTY_PROD = { producto:'', categoria:'', precio:'', descripcion:'', imagen:'' };
 
-/* ── HELPERS ───────────────────────────────── */
-const store = {
+/* ── CACHÉ LOCAL (offline-first) ──────────── */
+const cache = {
   get: (k, def) => { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : def; } catch { return def; } },
-  set: (k, v)   => { try { localStorage.setItem(k, JSON.stringify(v)); return true; } catch(err) { return (err.name === 'QuotaExceededError' || err.code === 22) ? 'quota' : false; } },
+  set: (k, v)   => { try { localStorage.setItem(k, JSON.stringify(v)); } catch {} },
 };
+
+/* ── CLIENTE API ───────────────────────────── */
+/* Truco anti-CORS: Apps Script acepta POST con Content-Type:text/plain
+   sin disparar preflight, leyendo el body con JSON.parse(e.postData.contents). */
+const apiPost = async (payload) => {
+  const res = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify(payload),
+    headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+    redirect: 'follow',
+  });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Error en el servidor');
+  return json.data;
+};
+
+const apiGet = async (action) => {
+  const res = await fetch(`${API_URL}?action=${action}`, { redirect: 'follow' });
+  const json = await res.json();
+  if (!json.ok) throw new Error(json.error || 'Error en el servidor');
+  return json.data;
+};
+
+const api = {
+  getProducts:    ()         => apiGet('products'),
+  getOrders:      ()         => apiGet('orders'),
+  saveProduct:    (data)     => apiPost({ action:'saveProduct',  data }),
+  deleteProduct:  (id)       => apiPost({ action:'deleteProduct', id  }),
+  createOrder:    (data)     => apiPost({ action:'createOrder',  data }),
+  updateOrderStatus: (id, estado) => apiPost({ action:'updateOrderStatus', id, estado }),
+};
+
 const mxn = n => new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN' }).format(Number(n));
-const uid = () => Date.now() + Math.random();
 
 /* ── BASE COMPONENTS ───────────────────────── */
 const Icon = ({ name, sz=18, style:s }) =>
@@ -99,6 +143,7 @@ const Btn = ({ onClick, color=B, textColor='#fff', border='none', bg, children, 
       cursor: disabled ? 'not-allowed' : 'pointer',
       display:'flex', alignItems:'center', justifyContent:'center', gap:8,
       transition:'opacity .15s', WebkitTapHighlightColor:'transparent',
+      opacity: disabled ? .7 : 1,
     }
   }, ...children);
 
@@ -111,7 +156,7 @@ const Field = ({ label, icon, err, children }) =>
       h(Icon, { name:'alert-circle', sz:12, style:{ verticalAlign:-1, marginRight:3 } }), err)
   );
 
-const BackBar = ({ onBack, title }) =>
+const BackBar = ({ onBack, title, action }) =>
   h('div', {
     style:{
       display:'flex', alignItems:'center', gap:10,
@@ -123,8 +168,15 @@ const BackBar = ({ onBack, title }) =>
       onClick: onBack,
       style:{ background:'none', border:'none', padding:'5px 6px', cursor:'pointer', color:GRAY, display:'flex', lineHeight:1, borderRadius:8 },
     }, h(Icon, { name:'arrow-left', sz:24 })),
-    h('span', { style:{ fontSize:17, fontWeight:700, flex:1, color:'#1a1a1a' } }, title)
+    h('span', { style:{ fontSize:17, fontWeight:700, flex:1, color:'#1a1a1a' } }, title),
+    action
   );
+
+const Spinner = ({ sz=20, color=B }) =>
+  h('div', { style:{ width:sz, height:sz, borderRadius:'50%', border:`2.5px solid ${color}`, borderTopColor:'transparent', animation:'spin .8s linear infinite', display:'inline-block' } });
+
+const Toast = ({ message, type='info' }) =>
+  message ? h('div', { className:`toast ${type}` }, message) : null;
 
 /* Renders a product image — base64 or external URL */
 const ProductImg = ({ src, id, imgErrs, setImgErrs, height=130, icon='snowflake' }) => {
@@ -142,11 +194,14 @@ const ProductImg = ({ src, id, imgErrs, setImgErrs, height=130, icon='snowflake'
 /* ── APP ───────────────────────────────────── */
 function App() {
   const [screen,     setScreen]     = useState('home');
-  const [products,   setProducts]   = useState(() => store.get('gomix_products', INIT_PRODUCTS));
+  const [products,   setProducts]   = useState(() => cache.get('gomix_products', INIT_PRODUCTS));
+  const [orders,     setOrders]     = useState(() => cache.get('gomix_orders', []));
+  const [loading,    setLoading]    = useState(true);
+  const [saving,     setSaving]     = useState(false);
+  const [toast,      setToast]      = useState({ msg:'', type:'info' });
   const [sel,        setSel]        = useState(null);
   const [qty,        setQty]        = useState(1);
-  const [orders,     setOrders]     = useState(() => store.get('gomix_orders', []));
-  const [buyForm,    setBuyForm]    = useState({ nombre:'', pago:'efectivo', direccion:'' });
+  const [buyForm,    setBuyForm]    = useState({ nombre:'', telefono:'', pago:'efectivo', direccion:'' });
   const [buyErrs,    setBuyErrs]    = useState({});
   const [pin,        setPin]        = useState('');
   const [pinErr,     setPinErr]     = useState(false);
@@ -161,104 +216,34 @@ function App() {
   const pinRef      = useRef(null);
   const imgInputRef = useRef(null);
 
-  /* ── Image compression — resizes to max 600px and converts to JPEG 75% ── */
-  const compressImage = file => new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = ev => {
-      const img = new Image();
-      img.onload = () => {
-        const MAX = 600;
-        const scale = Math.min(1, MAX / Math.max(img.width, img.height));
-        const w = Math.round(img.width  * scale);
-        const ch = Math.round(img.height * scale);
-        const canvas = document.createElement('canvas');
-        canvas.width = w; canvas.height = ch;
-        canvas.getContext('2d').drawImage(img, 0, 0, w, ch);
-        resolve(canvas.toDataURL('image/jpeg', 0.75));
-      };
-      img.onerror = reject;
-      img.src = ev.target.result;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
+  /* ─── Notificaciones ─── */
+  const showToast = useCallback((msg, type='info', duration=3000) => {
+    setToast({ msg, type });
+    setTimeout(() => setToast({ msg:'', type:'info' }), duration);
+  }, []);
 
-  const [storageErr, setStorageErr] = useState(false);
-  const [syncStatus, setSyncStatus] = useState('idle'); // 'idle'|'loading'|'syncing'|'ok'|'error'
-  const [syncMsg,    setSyncMsg]    = useState('');
+  /* ─── Carga inicial desde API ─── */
+  const refreshAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const [prods, ords] = await Promise.all([api.getProducts(), api.getOrders()]);
+      if (prods && prods.length > 0) {
+        setProducts(prods);
+        cache.set('gomix_products', prods);
+      }
+      setOrders(ords || []);
+      cache.set('gomix_orders', ords || []);
+    } catch (err) {
+      console.warn('No se pudo conectar a la API:', err);
+      showToast('Sin conexión — mostrando datos guardados', 'error');
+    } finally {
+      setLoading(false);
+    }
+  }, [showToast]);
 
-  useEffect(() => { if (store.set('gomix_products', products) === 'quota') setStorageErr(true); }, [products]);
-  useEffect(() => { if (store.set('gomix_orders',   orders)   === 'quota') setStorageErr(true); }, [orders]);
+  useEffect(() => { refreshAll(); }, [refreshAll]);
   useEffect(() => { window.scrollTo(0, 0); }, [screen]);
   useEffect(() => { if (screen === 'adminLogin') setTimeout(() => pinRef.current?.focus(), 100); }, [screen]);
-
-  /* ── Google Sheets sync ──────────────────────────────────────────────── */
-
-  /* Carga el catálogo desde Sheets al montar la app */
-  useEffect(() => { if (SHEETS_URL) loadFromSheets(); }, []);
-
-  const loadFromSheets = async () => {
-    if (!SHEETS_URL) return;
-    setSyncStatus('loading'); setSyncMsg('');
-    try {
-      const res = await fetch(SHEETS_URL + '?action=get', { cache:'no-store' });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      if (!Array.isArray(data) || data.length === 0) {
-        setSyncStatus('ok'); setSyncMsg('Hoja vacía — usando catálogo local'); return;
-      }
-      /* Conserva imágenes base64 locales (no caben en Sheets) */
-      const localCache = store.get('gomix_products', []);
-      const merged = data.map(sp => {
-        const local = localCache.find(lp => String(lp.id) === String(sp.id));
-        const img = (sp.imagen && !sp.imagen.startsWith('data:'))
-          ? sp.imagen : (local?.imagen || '');
-        return { ...sp, precio:Number(sp.precio), imagen:img };
-      });
-      setProducts(merged);
-      setSyncStatus('ok');
-      setSyncMsg('Sincronizado ' + new Date().toLocaleTimeString('es-MX'));
-    } catch(err) {
-      setSyncStatus('error');
-      setSyncMsg('Error de conexión — catálogo local activo');
-    }
-  };
-
-  /* Agrega o actualiza UN producto en Sheets via GET (evita CORS de POST) */
-  const upsertToSheets = async prod => {
-    if (!SHEETS_URL) return;
-    setSyncStatus('syncing');
-    const p = { ...prod, imagen: prod.imagen?.startsWith('data:') ? '' : (prod.imagen||'') };
-    try {
-      const url = SHEETS_URL + '?action=upsert&product=' + encodeURIComponent(JSON.stringify(p));
-      const res = await fetch(url, { cache:'no-store' });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setSyncStatus('ok');
-      setSyncMsg('Guardado ' + new Date().toLocaleTimeString('es-MX'));
-    } catch(err) {
-      setSyncStatus('error');
-      setSyncMsg('No se pudo guardar en Sheets — sí se guardó localmente');
-    }
-  };
-
-  /* Elimina UN producto de Sheets via GET */
-  const deleteFromSheets = async id => {
-    if (!SHEETS_URL) return;
-    setSyncStatus('syncing');
-    try {
-      const url = SHEETS_URL + '?action=delete&id=' + encodeURIComponent(String(id));
-      const res = await fetch(url, { cache:'no-store' });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      setSyncStatus('ok');
-      setSyncMsg('Eliminado ' + new Date().toLocaleTimeString('es-MX'));
-    } catch(err) {
-      setSyncStatus('error');
-      setSyncMsg('No se pudo eliminar en Sheets — sí se eliminó localmente');
-    }
-  };
 
   const cats      = ['Todos', ...new Set(products.map(p => p.categoria).filter(Boolean))];
   const adminCats = [...new Set(products.map(p => p.categoria).filter(Boolean))];
@@ -267,16 +252,42 @@ function App() {
   /* navigation */
   const openProduct = p => { setSel(p); setQty(1); setScreen('product'); };
   const goHome      = () => { setScreen('home'); };
-  const goAdmin     = () => { setScreen('admin'); setPin(''); setPinErr(false); setAdminTab('pedidos'); setEditId(null); setDelId(null); };
+  const goAdmin     = () => { setScreen('admin'); setPin(''); setPinErr(false); setAdminTab('pedidos'); setEditId(null); setDelId(null); refreshAll(); };
 
-  /* checkout */
-  const submitOrder = () => {
+  /* checkout — ahora va a la API */
+  const submitOrder = async () => {
     const e = {};
     if (!buyForm.nombre.trim())    e.nombre    = 'Escribe tu nombre';
+    if (!buyForm.telefono.trim())  e.telefono  = 'Escribe tu teléfono';
+    else if (!/^\d{10}$/.test(buyForm.telefono.replace(/\s/g,''))) e.telefono = 'Debe ser un número de 10 dígitos';
     if (!buyForm.direccion.trim()) e.direccion = 'Escribe tu dirección';
     if (Object.keys(e).length) { setBuyErrs(e); return; }
-    setOrders(prev => [{ id:uid(), ...sel, cant:qty, total:sel.precio*qty, ...buyForm, fecha:new Date().toLocaleString('es-MX') }, ...prev]);
-    setScreen('done');
+
+    setSaving(true);
+    const orderData = {
+      fecha:           new Date().toISOString(),
+      nombre:          buyForm.nombre.trim(),
+      telefono:        buyForm.telefono.replace(/\s/g,''),
+      direccion:       buyForm.direccion.trim(),
+      producto:        sel.producto,
+      cantidad:        qty,
+      precio_unitario: sel.precio,
+      total:           sel.precio * qty,
+      pago:            buyForm.pago,
+      estado:          'pendiente',
+      notas:           '',
+    };
+    try {
+      const saved = await api.createOrder(orderData);
+      const newOrders = [{ ...saved, fecha: new Date(saved.fecha).toLocaleString('es-MX'), cant: saved.cantidad }, ...orders];
+      setOrders(newOrders);
+      cache.set('gomix_orders', newOrders);
+      setScreen('done');
+    } catch (err) {
+      showToast('Error al enviar pedido: ' + err.message, 'error', 5000);
+    } finally {
+      setSaving(false);
+    }
   };
 
   /* auth */
@@ -294,33 +305,57 @@ function App() {
     if (!prodForm.precio || isNaN(Number(prodForm.precio)) || Number(prodForm.precio) <= 0)
                                       e.precio      = 'Precio inválido';
     if (!prodForm.descripcion.trim()) e.descripcion = 'Descripción requerida';
+    // En paso 1, base64 grande no cabe en Sheets. Lo bloqueamos con mensaje claro.
+    if (prodForm.imagen && prodForm.imagen.startsWith('data:') && prodForm.imagen.length > 45000) {
+      e.imagen = 'La imagen es demasiado pesada. Usa una URL externa o espera al paso 2 (Cloudinary).';
+    }
     setProdErrs(e);
     return !Object.keys(e).length;
   };
 
-  const saveProd = () => {
+  const saveProd = async () => {
     if (!validateProd()) return;
-    const p = { ...prodForm, precio:Number(prodForm.precio) };
-    let saved;
-    let newProducts;
-    if (editId === 'new') {
-      saved = { ...p, id:uid() };
-      newProducts = [...products, saved];
-    } else {
-      saved = { ...products.find(x => x.id === editId), ...p };
-      newProducts = products.map(x => x.id === editId ? saved : x);
-      if (sel?.id === editId) setSel(s => ({ ...s, ...p }));
+    const data = {
+      ...prodForm,
+      precio: Number(prodForm.precio),
+      id: editId === 'new' ? undefined : editId,
+    };
+
+    setSaving(true);
+    try {
+      const saved = await api.saveProduct(data);
+      let newList;
+      if (editId === 'new') {
+        newList = [...products, saved];
+      } else {
+        newList = products.map(x => x.id === editId ? { ...x, ...saved } : x);
+        if (sel?.id === editId) setSel(s => ({ ...s, ...saved }));
+      }
+      setProducts(newList);
+      cache.set('gomix_products', newList);
+      showToast(editId === 'new' ? 'Producto agregado' : 'Cambios guardados', 'success');
+      setEditId(null);
+    } catch (err) {
+      showToast('Error al guardar: ' + err.message, 'error', 5000);
+    } finally {
+      setSaving(false);
     }
-    setProducts(newProducts);
-    upsertToSheets(saved);
-    setEditId(null);
   };
 
-  const deleteProd = () => {
-    const newProducts = products.filter(p => p.id !== delId);
-    setProducts(newProducts);
-    deleteFromSheets(delId);
-    setDelId(null);
+  const deleteProd = async () => {
+    setSaving(true);
+    try {
+      await api.deleteProduct(delId);
+      const newList = products.filter(p => p.id !== delId);
+      setProducts(newList);
+      cache.set('gomix_products', newList);
+      showToast('Producto eliminado', 'success');
+      setDelId(null);
+    } catch (err) {
+      showToast('Error al eliminar: ' + err.message, 'error', 5000);
+    } finally {
+      setSaving(false);
+    }
   };
 
   /* field helpers */
@@ -330,22 +365,21 @@ function App() {
   /* image picker */
   const pickImage = e => { e.stopPropagation(); imgInputRef.current?.click(); };
 
-  const onImgPicked = async e => {
+  const onImgPicked = e => {
     const file = e.target.files?.[0];
     if (!file) return;
     setImgLoading(true);
-    try {
-      const compressed = await compressImage(file);
-      setProdForm(f => ({ ...f, imagen: compressed }));
-    } catch {
-      alert('No se pudo cargar la imagen. Intenta con otra foto.');
-    } finally {
-      setImgLoading(false);
-    }
+    const reader = new FileReader();
+    reader.onload  = ev => { setProdForm(f => ({ ...f, imagen:ev.target.result })); setImgLoading(false); };
+    reader.onerror = ()  => setImgLoading(false);
+    reader.readAsDataURL(file);
     e.target.value = '';
   };
 
   const fallback = cat => cat === 'Frape' ? 'cup' : 'snowflake';
+
+  /* render del toast común */
+  const toastEl = h(Toast, { message: toast.msg, type: toast.type });
 
   /* ════════════════════════
      HOME
@@ -363,27 +397,34 @@ function App() {
         style:{ fontSize:13, padding:'7px 12px', borderRadius:9, border:'1.5px solid #e8e8e8', background:'none', cursor:'pointer', color:GRAY, display:'flex', alignItems:'center', gap:5, fontWeight:500 },
       }, h(Icon, { name:'lock', sz:14 }), 'Admin')
     ),
-    h('div', { style:{ display:'flex', gap:8, overflowX:'auto', paddingBottom:14, marginBottom:16 } },
-      cats.map(c => h('button', {
-        key:c, onClick:() => setCat(c),
-        style:{ padding:'7px 18px', borderRadius:24, border:'1.5px solid', borderColor:cat===c?B:'#e8e8e8', background:cat===c?BL:'#fff', color:cat===c?BD:GRAY, cursor:'pointer', fontSize:13, fontWeight:cat===c?700:400, whiteSpace:'nowrap', flexShrink:0 },
-      }, c))
-    ),
-    h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:12 } },
-      visible.map(p => h('div', {
-        key:p.id, onClick:() => openProduct(p),
-        style:{ background:'#fff', border:'1px solid #efefef', borderRadius:14, overflow:'hidden', cursor:'pointer' },
-      },
-        h('div', { style:{ height:130, background:'#f5f5f5', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' } },
-          h(ProductImg, { src:p.imagen, id:p.id, imgErrs, setImgErrs, height:130, icon:fallback(p.categoria) })
+    loading && products.length === 0
+      ? h('div', { style:{ padding:'4rem 1rem', textAlign:'center' } },
+          h(Spinner, { sz:36 }),
+          h('div', { style:{ fontSize:14, color:GRAY, marginTop:14 } }, 'Cargando catálogo...'))
+      : h(React.Fragment, null,
+          h('div', { style:{ display:'flex', gap:8, overflowX:'auto', paddingBottom:14, marginBottom:16 } },
+            cats.map(c => h('button', {
+              key:c, onClick:() => setCat(c),
+              style:{ padding:'7px 18px', borderRadius:24, border:'1.5px solid', borderColor:cat===c?B:'#e8e8e8', background:cat===c?BL:'#fff', color:cat===c?BD:GRAY, cursor:'pointer', fontSize:13, fontWeight:cat===c?700:400, whiteSpace:'nowrap', flexShrink:0 },
+            }, c))
+          ),
+          h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(2,1fr)', gap:12 } },
+            visible.map(p => h('div', {
+              key:p.id, onClick:() => openProduct(p),
+              style:{ background:'#fff', border:'1px solid #efefef', borderRadius:14, overflow:'hidden', cursor:'pointer' },
+            },
+              h('div', { style:{ height:130, background:'#f5f5f5', overflow:'hidden', display:'flex', alignItems:'center', justifyContent:'center' } },
+                h(ProductImg, { src:p.imagen, id:p.id, imgErrs, setImgErrs, height:130, icon:fallback(p.categoria) })
+              ),
+              h('div', { style:{ padding:'10px 12px 13px' } },
+                h('div', { style:{ fontSize:11, color:'#aaa', marginBottom:2 } }, p.categoria),
+                h('div', { style:{ fontSize:14, fontWeight:700, lineHeight:1.35, marginBottom:6 } }, p.producto),
+                h('div', { style:{ fontSize:17, fontWeight:800, color:B } }, mxn(p.precio))
+              )
+            ))
+          )
         ),
-        h('div', { style:{ padding:'10px 12px 13px' } },
-          h('div', { style:{ fontSize:11, color:'#aaa', marginBottom:2 } }, p.categoria),
-          h('div', { style:{ fontSize:14, fontWeight:700, lineHeight:1.35, marginBottom:6 } }, p.producto),
-          h('div', { style:{ fontSize:17, fontWeight:800, color:B } }, mxn(p.precio))
-        )
-      ))
-    )
+    toastEl
   );
 
   /* ════════════════════════
@@ -415,8 +456,9 @@ function App() {
       ),
       h('span', { style:{ minWidth:100, textAlign:'right', fontSize:20, fontWeight:800, color:B } }, mxn(sel.precio*qty))
     ),
-    h(Btn, { onClick:() => { setBuyForm({ nombre:'', pago:'efectivo', direccion:'' }); setBuyErrs({}); setScreen('checkout'); } },
-      h(Icon, { name:'shopping-cart', sz:19 }), 'Comprar — ', mxn(sel.precio*qty))
+    h(Btn, { onClick:() => { setBuyForm({ nombre:'', telefono:'', pago:'efectivo', direccion:'' }); setBuyErrs({}); setScreen('checkout'); } },
+      h(Icon, { name:'shopping-cart', sz:19 }), 'Comprar — ', mxn(sel.precio*qty)),
+    toastEl
   );
 
   /* ════════════════════════
@@ -438,6 +480,9 @@ function App() {
       h(Field, { label:'Nombre completo', icon:'user', err:buyErrs.nombre },
         h('input', { type:'text', value:buyForm.nombre, onChange:e => bf('nombre',e.target.value), placeholder:'Escribe tu nombre...' })
       ),
+      h(Field, { label:'Teléfono (10 dígitos)', icon:'phone', err:buyErrs.telefono },
+        h('input', { type:'tel', value:buyForm.telefono, onChange:e => bf('telefono',e.target.value.replace(/\D/g,'').slice(0,10)), placeholder:'5512345678', inputMode:'numeric' })
+      ),
       h('div', null,
         h('label', { style:{ fontSize:13, fontWeight:600, color:GRAY, display:'block', marginBottom:10 } },
           h(Icon, { name:'wallet', sz:14, style:{ verticalAlign:-2, marginRight:4 } }), 'Forma de pago'),
@@ -458,8 +503,11 @@ function App() {
       )
     ),
     h('div', { style:{ marginTop:24 } },
-      h(Btn, { onClick:submitOrder }, h(Icon, { name:'check', sz:19 }), 'Confirmar pedido')
-    )
+      h(Btn, { onClick:submitOrder, disabled:saving },
+        saving ? h(Spinner, { sz:18, color:'#fff' }) : h(Icon, { name:'check', sz:19 }),
+        saving ? 'Enviando...' : 'Confirmar pedido')
+    ),
+    toastEl
   );
 
   /* ════════════════════════
@@ -475,7 +523,14 @@ function App() {
         h('p', { style:{ fontSize:14, color:GRAY, marginBottom:26, lineHeight:1.7 } }, 'Nos pondremos en contacto para coordinar la entrega.'),
         o && h('div', { style:{ background:'#fafafa', borderRadius:14, padding:'16px', textAlign:'left', marginBottom:26 } },
           h('div', { style:{ fontSize:11, fontWeight:700, color:GRAY, textTransform:'uppercase', letterSpacing:.8, marginBottom:10 } }, 'Detalles del pedido'),
-          [['Producto',`${o.producto} × ${o.cant}`],['Total',mxn(o.total)],['Nombre',o.nombre],['Pago',o.pago==='efectivo'?'Efectivo':'Transferencia'],['Dirección',o.direccion]].map(([k,v]) =>
+          [
+            ['Producto', `${o.producto} × ${o.cantidad || o.cant}`],
+            ['Total',    mxn(o.total)],
+            ['Nombre',   o.nombre],
+            ['Teléfono', o.telefono || '—'],
+            ['Pago',     o.pago==='efectivo'?'Efectivo':'Transferencia'],
+            ['Dirección',o.direccion],
+          ].map(([k,v]) =>
             h('div', { key:k, style:{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'7px 0', borderBottom:'1px solid #ebebeb' } },
               h('span', { style:{ color:GRAY, flexShrink:0, marginRight:12, fontWeight:500 } }, k),
               h('span', { style:{ fontWeight:700, textAlign:'right', wordBreak:'break-word', maxWidth:'58%' } }, v)
@@ -483,7 +538,8 @@ function App() {
           )
         ),
         h(Btn, { onClick:goHome, full:false }, h(Icon, { name:'home', sz:18 }), 'Volver al inicio')
-      )
+      ),
+      toastEl
     );
   }
 
@@ -507,7 +563,8 @@ function App() {
       pinErr && h('p', { style:{ fontSize:13, color:'#C62828', margin:'0 0 14px', fontWeight:600 } },
         h(Icon, { name:'alert-circle', sz:14, style:{ verticalAlign:-2, marginRight:3 } }), 'PIN incorrecto. Inténtalo de nuevo.'),
       h(Btn, { onClick:doLogin }, h(Icon, { name:'login', sz:18 }), 'Ingresar')
-    )
+    ),
+    toastEl
   );
 
   /* ════════════════════════
@@ -521,10 +578,8 @@ function App() {
       return h('div', { style:{ paddingBottom:32 } },
         h(BackBar, { onBack:cancelEdit, title:isNew ? 'Nuevo producto' : 'Editar producto' }),
 
-        /* ── Selector de imagen desde galería ── */
+        /* ── Selector de imagen ── */
         h('div', { style:{ marginBottom:20 } },
-
-          /* Área de preview / toque para cambiar */
           h('div', {
             onClick: pickImage,
             style:{
@@ -534,18 +589,14 @@ function App() {
               cursor:'pointer', position:'relative',
             }
           },
-            /* input file oculto */
             h('input', {
               ref:imgInputRef, type:'file', accept:'image/*',
               onChange:onImgPicked, style:{ display:'none' },
             }),
-
-            /* Estados: cargando / con imagen / sin imagen */
             imgLoading
               ? h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 } },
-                  h('div', { style:{ width:36, height:36, borderRadius:'50%', border:`3px solid ${B}`, borderTopColor:'transparent', animation:'spin .8s linear infinite' } }),
-                  h('span', { style:{ fontSize:13, color:GRAY } }, 'Cargando imagen...')
-                )
+                  h(Spinner, { sz:36 }),
+                  h('span', { style:{ fontSize:13, color:GRAY } }, 'Cargando imagen...'))
               : prodForm.imagen
                 ? h('img', { key:prodForm.imagen.slice(-30), src:prodForm.imagen, alt:'Vista previa', style:{ width:'100%', height:'100%', objectFit:'cover' } })
                 : h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 } },
@@ -554,8 +605,6 @@ function App() {
                     h('span', { style:{ fontSize:14, fontWeight:700, color:B } }, 'Seleccionar imagen'),
                     h('span', { style:{ fontSize:12, color:'#aaa' } }, 'Toca para abrir tu galería')
                   ),
-
-            /* Overlay "Cambiar" cuando ya hay foto */
             (!imgLoading && prodForm.imagen) && h('div', {
               style:{ position:'absolute', bottom:0, left:0, right:0, background:'rgba(0,0,0,.45)', padding:'8px', display:'flex', alignItems:'center', justifyContent:'center', gap:6 }
             },
@@ -564,7 +613,7 @@ function App() {
             )
           ),
 
-          /* Botones secundarios */
+          /* Botones secundarios + URL manual */
           h('div', { style:{ display:'flex', gap:8, marginTop:10 } },
             h('button', {
               onClick:pickImage,
@@ -575,16 +624,29 @@ function App() {
               onClick: e => { e.stopPropagation(); setProdForm(f => ({ ...f, imagen:'' })); },
               style:{ padding:'11px 14px', borderRadius:10, border:'1.5px solid #e0e0e0', background:'#fff', color:GRAY, fontWeight:600, fontSize:13, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', gap:5 },
             }, h(Icon, { name:'x', sz:15 }), 'Quitar')
+          ),
+
+          /* Campo URL manual de respaldo (recomendado en paso 1) */
+          h('div', { style:{ marginTop:12 } },
+            h('label', { style:{ fontSize:11, color:GRAY, fontWeight:600, display:'block', marginBottom:5 } },
+              h(Icon, { name:'link', sz:11, style:{ verticalAlign:-1, marginRight:3 } }),
+              'O pega una URL de imagen (recomendado por ahora)'),
+            h('input', {
+              type:'url', value: prodForm.imagen && prodForm.imagen.startsWith('http') ? prodForm.imagen : '',
+              onChange:e => pf('imagen', e.target.value),
+              placeholder:'https://...',
+              style:{ fontSize:13 },
+            }),
+            prodErrs.imagen && h('span', { style:{ fontSize:12, color:'#C62828', marginTop:5, display:'block', fontWeight:500 } },
+              h(Icon, { name:'alert-circle', sz:12, style:{ verticalAlign:-1, marginRight:3 } }), prodErrs.imagen)
           )
         ),
 
         /* ── Campos de texto ── */
         h('div', { style:{ display:'flex', flexDirection:'column', gap:16 } },
-
           h(Field, { label:'Nombre del producto', icon:'tag', err:prodErrs.producto },
             h('input', { type:'text', value:prodForm.producto, onChange:e => pf('producto',e.target.value), placeholder:'Ej. Frape de chocolate' })
           ),
-
           h('div', { style:{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:12 } },
             h(Field, { label:'Categoría', icon:'layout-grid', err:prodErrs.categoria },
               h('div', null,
@@ -596,7 +658,6 @@ function App() {
               h('input', { type:'number', value:prodForm.precio, onChange:e => pf('precio',e.target.value), placeholder:'35', min:1, step:1 })
             )
           ),
-
           h(Field, { label:'Descripción / Ingredientes', icon:'align-left', err:prodErrs.descripcion },
             h('textarea', { value:prodForm.descripcion, onChange:e => pf('descripcion',e.target.value), placeholder:'Describe el producto, ingredientes, presentación...', rows:4 })
           )
@@ -604,15 +665,16 @@ function App() {
 
         /* ── Botones de acción ── */
         h('div', { style:{ display:'flex', gap:10, marginTop:24 } },
-          h(Btn, { onClick:cancelEdit, color:'#fff', textColor:GRAY, border:'1.5px solid #e0e0e0', full:false }, 'Cancelar'),
+          h(Btn, { onClick:cancelEdit, color:'#fff', textColor:GRAY, border:'1.5px solid #e0e0e0', full:false, disabled:saving }, 'Cancelar'),
           h('div', { style:{ flex:1 } },
-            h(Btn, { onClick:saveProd },
-              h(Icon, { name:isNew?'plus':'device-floppy', sz:18 }),
-              isNew ? 'Agregar producto' : 'Guardar cambios'
+            h(Btn, { onClick:saveProd, disabled:saving },
+              saving ? h(Spinner, { sz:18, color:'#fff' }) : h(Icon, { name:isNew?'plus':'device-floppy', sz:18 }),
+              saving ? 'Guardando...' : (isNew ? 'Agregar producto' : 'Guardar cambios')
             )
           )
-        )
-      ); // end edit form return
+        ),
+        toastEl
+      );
     }
 
     /* ─ Confirmación de eliminar ─ */
@@ -627,12 +689,15 @@ function App() {
           h('p', { style:{ fontSize:14, color:GRAY, margin:'0 auto 28px', maxWidth:300, lineHeight:1.7 } },
             '¿Seguro que deseas eliminar ', h('strong', null, dp?.producto), '? Esta acción no se puede deshacer.'),
           h('div', { style:{ display:'flex', gap:12 } },
-            h(Btn, { onClick:() => setDelId(null), color:'#fff', textColor:GRAY, border:'1.5px solid #e0e0e0', full:false }, 'Cancelar'),
+            h(Btn, { onClick:() => setDelId(null), color:'#fff', textColor:GRAY, border:'1.5px solid #e0e0e0', full:false, disabled:saving }, 'Cancelar'),
             h('div', { style:{ flex:1 } },
-              h(Btn, { onClick:deleteProd, color:'#A32D2D' }, h(Icon, { name:'trash', sz:18 }), 'Sí, eliminar')
+              h(Btn, { onClick:deleteProd, color:'#A32D2D', disabled:saving },
+                saving ? h(Spinner, { sz:18, color:'#fff' }) : h(Icon, { name:'trash', sz:18 }),
+                saving ? 'Eliminando...' : 'Sí, eliminar')
             )
           )
-        )
+        ),
+        toastEl
       );
     }
 
@@ -645,58 +710,21 @@ function App() {
           h(Icon, { name:'shield', sz:20, style:{ color:'#fff' } })),
         h('span', { style:{ fontSize:20, fontWeight:800, flex:1 } }, 'Panel Admin'),
         h('button', {
+          onClick:refreshAll, disabled:loading,
+          style:{ fontSize:13, padding:'7px 10px', borderRadius:9, border:'1.5px solid #e8e8e8', background:'none', cursor:loading?'wait':'pointer', color:GRAY, fontWeight:500, display:'flex', alignItems:'center', gap:5 },
+        }, loading ? h(Spinner, { sz:13 }) : h(Icon, { name:'refresh', sz:14 }), loading?'':'Actualizar'),
+        h('button', {
           onClick:goHome,
           style:{ fontSize:13, padding:'7px 14px', borderRadius:9, border:'1.5px solid #e8e8e8', background:'none', cursor:'pointer', color:GRAY, fontWeight:500 },
         }, 'Salir')
       ),
 
-      /* Alerta de almacenamiento lleno */
-      storageErr && h('div', {
-        style:{ background:'#FFF3CD', border:'1.5px solid #FFCA28', borderRadius:12, padding:'12px 14px', marginBottom:16, display:'flex', gap:10, alignItems:'flex-start' }
-      },
-        h(Icon, { name:'alert-triangle', sz:20, style:{ color:'#E65100', flexShrink:0, marginTop:1 } }),
-        h('div', null,
-          h('div', { style:{ fontWeight:700, fontSize:14, color:'#5D3B00', marginBottom:3 } }, 'Almacenamiento lleno'),
-          h('p', { style:{ fontSize:13, color:'#7A4F00', lineHeight:1.5, margin:0 } },
-            'El dispositivo no pudo guardar los últimos cambios porque el almacenamiento local está lleno. Elimina productos con imágenes pesadas o limpia el caché del navegador.')
-        )
-      ),
-
-      /* Estado de sincronización con Google Sheets */
-      SHEETS_URL && h('div', {
-        style:{
-          display:'flex', alignItems:'center', gap:8,
-          padding:'9px 12px', borderRadius:10, marginBottom:14,
-          background: syncStatus==='error' ? '#FFF3E0' : syncStatus==='ok' ? '#F1F8E9' : '#F5F5F5',
-          border: `1px solid ${syncStatus==='error'?'#FFCC80':syncStatus==='ok'?'#C5E1A5':'#E0E0E0'}`,
-        }
-      },
-        h(Icon, {
-          name: syncStatus==='loading'||syncStatus==='syncing' ? 'loader-2' : syncStatus==='ok' ? 'check' : syncStatus==='error' ? 'wifi-off' : 'table',
-          sz:15,
-          style:{
-            color: syncStatus==='error'?'#E65100':syncStatus==='ok'?'#33691E':'#757575',
-            animation: (syncStatus==='loading'||syncStatus==='syncing') ? 'spin .8s linear infinite' : 'none',
-          }
-        }),
-        h('span', { style:{ fontSize:13, flex:1, fontWeight:500,
-          color: syncStatus==='error'?'#BF360C':syncStatus==='ok'?'#33691E':'#616161' } },
-          syncStatus==='loading' ? 'Cargando catálogo desde Google Sheets…' :
-          syncStatus==='syncing' ? 'Guardando en Google Sheets…' :
-          syncMsg || 'Google Sheets conectado'
-        ),
-        (syncStatus==='ok'||syncStatus==='error') && h('button', {
-          onClick: loadFromSheets,
-          style:{ fontSize:12, color:'#1565C0', background:'none', border:'none', cursor:'pointer', fontWeight:700, padding:'2px 6px', flexShrink:0 }
-        }, h(Icon, { name:'refresh', sz:13, style:{ verticalAlign:-2, marginRight:3 } }), 'Recargar')
-      ),
-
       /* Stats */
       h('div', { style:{ display:'grid', gridTemplateColumns:'repeat(3,1fr)', gap:10, marginBottom:20 } },
         [
-          { label:'Pedidos',   val:orders.length,                                       icon:'receipt' },
-          { label:'Ventas',    val:mxn(orders.reduce((s,o) => s+o.total, 0)),            icon:'cash'    },
-          { label:'Productos', val:products.length,                                      icon:'package' },
+          { label:'Pedidos',   val:orders.length,                                      icon:'receipt' },
+          { label:'Ventas',    val:mxn(orders.reduce((s,o) => s+(Number(o.total)||0), 0)), icon:'cash'    },
+          { label:'Productos', val:products.length,                                    icon:'package' },
         ].map(s => h('div', { key:s.label, style:{ background:'#fafafa', borderRadius:12, padding:'11px 12px', border:'1px solid #f0f0f0' } },
           h('div', { style:{ fontSize:11, color:GRAY, marginBottom:4, fontWeight:500 } },
             h(Icon, { name:s.icon, sz:12, style:{ verticalAlign:-1, marginRight:3 } }), s.label),
@@ -720,20 +748,24 @@ function App() {
           ? h('div', { style:{ textAlign:'center', padding:'3rem 1rem' } },
               h(Icon, { name:'inbox', sz:52, style:{ color:'#ddd', display:'block', margin:'0 auto 12px' } }),
               h('div', { style:{ fontSize:15, color:GRAY } }, 'Aún no hay pedidos'))
-          : h('div', null, orders.map(o =>
-              h('div', { key:o.id, style:{ background:'#fff', border:'1px solid #efefef', borderRadius:14, padding:'13px 15px', marginBottom:10 } },
+          : h('div', null, orders.map(o => {
+              const fechaTxt = (() => {
+                try { return new Date(o.fecha).toLocaleString('es-MX'); } catch { return o.fecha; }
+              })();
+              return h('div', { key:o.id, style:{ background:'#fff', border:'1px solid #efefef', borderRadius:14, padding:'13px 15px', marginBottom:10 } },
                 h('div', { style:{ display:'flex', justifyContent:'space-between', marginBottom:6 } },
                   h('span', { style:{ fontSize:16, fontWeight:800 } }, o.nombre),
                   h('span', { style:{ fontSize:16, fontWeight:800, color:B } }, mxn(o.total))
                 ),
-                h('div', { style:{ fontSize:13, color:GRAY, marginBottom:3 } }, h(Icon, { name:'package', sz:13, style:{ verticalAlign:-2, marginRight:4 } }), o.producto,' × ',o.cant),
+                h('div', { style:{ fontSize:13, color:GRAY, marginBottom:3 } }, h(Icon, { name:'package', sz:13, style:{ verticalAlign:-2, marginRight:4 } }), o.producto,' × ', o.cantidad || o.cant),
+                o.telefono && h('div', { style:{ fontSize:13, color:GRAY, marginBottom:3 } }, h(Icon, { name:'phone', sz:13, style:{ verticalAlign:-2, marginRight:4 } }), o.telefono),
                 h('div', { style:{ fontSize:13, color:GRAY, marginBottom:3 } }, h(Icon, { name:'map-pin', sz:13, style:{ verticalAlign:-2, marginRight:4 } }), o.direccion),
                 h('div', { style:{ display:'flex', justifyContent:'space-between', fontSize:11, color:'#bbb', marginTop:8, paddingTop:8, borderTop:'1px solid #f5f5f5' } },
                   h('span', null, h(Icon, { name:'cash', sz:12, style:{ verticalAlign:-1, marginRight:3 } }), o.pago==='efectivo'?'Efectivo':'Transferencia'),
-                  h('span', null, o.fecha)
+                  h('span', null, fechaTxt)
                 )
-              )
-            ))
+              );
+            }))
       ),
 
       /* Tab: Catálogo */
@@ -766,9 +798,10 @@ function App() {
             }, h(Icon, { name:'trash', sz:17 }))
           )
         ))
-      )
-    ); // end admin main return
-  } // end admin screen
+      ),
+      toastEl
+    );
+  }
 
   return null;
 }
