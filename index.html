@@ -63,10 +63,14 @@ const { useState, useEffect, useRef, useCallback } = React;
 const h = React.createElement;
 
 /* ── CONFIGURACIÓN ─────────────────────────────
-   ⚠️  REEMPLAZA esta URL por la de tu Web App de Apps Script.
-       (Deploy → New deployment → Web app → termina en /exec)
+   ⚠️  Reemplaza estos valores por los de tus servicios.
 ─────────────────────────────────────────────── */
+// Apps Script Web App (Deploy → New deployment → Web app → termina en /exec)
 const API_URL = 'https://script.google.com/macros/s/AKfycbx87k0FvVTpxrCynrGFrSCkmDoTl67WHNk32Vb8JoKpn68ktx8dNF68EBRApjhPBJns/exec';
+
+// Cloudinary (Settings → Upload presets → crea un "unsigned" preset)
+const CLOUDINARY_CLOUD_NAME    = 'dypn1u2zw';
+const CLOUDINARY_UPLOAD_PRESET = 'gomix_unsigned';
 
 /* ── CONSTANTS ─────────────────────────────── */
 const B    = '#E8620A';
@@ -123,6 +127,58 @@ const api = {
   deleteProduct:  (id)       => apiPost({ action:'deleteProduct', id  }),
   createOrder:    (data)     => apiPost({ action:'createOrder',  data }),
   updateOrderStatus: (id, estado) => apiPost({ action:'updateOrderStatus', id, estado }),
+};
+
+/* ── COMPRESIÓN + UPLOAD A CLOUDINARY ──────────
+   1) Redimensiona en el cliente a máx 1000 px de ancho
+   2) Convierte a JPEG calidad 0.85
+   3) Sube como POST multipart al endpoint unsigned
+   4) Devuelve la URL pública (secure_url)
+─────────────────────────────────────────────── */
+const compressImage = (file, maxWidth = 1000, quality = 0.85) => new Promise((resolve, reject) => {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width > maxWidth) {
+        height = Math.round(height * maxWidth / width);
+        width  = maxWidth;
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width  = width;
+      canvas.height = height;
+      const ctx = canvas.getContext('2d');
+      ctx.fillStyle = '#fff';                  // fondo blanco para PNGs transparentes
+      ctx.fillRect(0, 0, width, height);
+      ctx.drawImage(img, 0, 0, width, height);
+      canvas.toBlob(b => b ? resolve(b) : reject(new Error('No se pudo comprimir')), 'image/jpeg', quality);
+    };
+    img.onerror = () => reject(new Error('Archivo no es una imagen válida'));
+    img.src = ev.target.result;
+  };
+  reader.onerror = () => reject(new Error('No se pudo leer el archivo'));
+  reader.readAsDataURL(file);
+});
+
+const uploadToCloudinary = async (file) => {
+  if (!CLOUDINARY_CLOUD_NAME || CLOUDINARY_CLOUD_NAME.startsWith('PEGA_')) {
+    throw new Error('Cloudinary no está configurado. Revisa CLOUDINARY_CLOUD_NAME en index.html.');
+  }
+  const compressed = await compressImage(file);
+  const fd = new FormData();
+  fd.append('file', compressed);
+  fd.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+  const res = await fetch(
+    `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+    { method: 'POST', body: fd }
+  );
+  if (!res.ok) {
+    const errBody = await res.json().catch(() => ({}));
+    throw new Error(errBody.error?.message || `Upload falló (HTTP ${res.status})`);
+  }
+  const data = await res.json();
+  return data.secure_url;
 };
 
 const mxn = n => new Intl.NumberFormat('es-MX', { style:'currency', currency:'MXN' }).format(Number(n));
@@ -305,9 +361,10 @@ function App() {
     if (!prodForm.precio || isNaN(Number(prodForm.precio)) || Number(prodForm.precio) <= 0)
                                       e.precio      = 'Precio inválido';
     if (!prodForm.descripcion.trim()) e.descripcion = 'Descripción requerida';
-    // En paso 1, base64 grande no cabe en Sheets. Lo bloqueamos con mensaje claro.
-    if (prodForm.imagen && prodForm.imagen.startsWith('data:') && prodForm.imagen.length > 45000) {
-      e.imagen = 'La imagen es demasiado pesada. Usa una URL externa o espera al paso 2 (Cloudinary).';
+    // Después del paso 2 (Cloudinary), prodForm.imagen siempre es una URL https.
+    // Bloqueamos data:URL accidentales (por si Cloudinary no está configurado todavía).
+    if (prodForm.imagen && prodForm.imagen.startsWith('data:')) {
+      e.imagen = 'Cloudinary no está configurado. Revisa la configuración en index.html.';
     }
     setProdErrs(e);
     return !Object.keys(e).length;
@@ -365,15 +422,24 @@ function App() {
   /* image picker */
   const pickImage = e => { e.stopPropagation(); imgInputRef.current?.click(); };
 
-  const onImgPicked = e => {
+  const onImgPicked = async e => {
     const file = e.target.files?.[0];
-    if (!file) return;
-    setImgLoading(true);
-    const reader = new FileReader();
-    reader.onload  = ev => { setProdForm(f => ({ ...f, imagen:ev.target.result })); setImgLoading(false); };
-    reader.onerror = ()  => setImgLoading(false);
-    reader.readAsDataURL(file);
     e.target.value = '';
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showToast('El archivo no es una imagen', 'error');
+      return;
+    }
+    setImgLoading(true);
+    try {
+      const url = await uploadToCloudinary(file);
+      setProdForm(f => ({ ...f, imagen: url }));
+      showToast('Imagen subida', 'success');
+    } catch (err) {
+      showToast('Error al subir imagen: ' + err.message, 'error', 5000);
+    } finally {
+      setImgLoading(false);
+    }
   };
 
   const fallback = cat => cat === 'Frape' ? 'cup' : 'snowflake';
@@ -596,7 +662,8 @@ function App() {
             imgLoading
               ? h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 } },
                   h(Spinner, { sz:36 }),
-                  h('span', { style:{ fontSize:13, color:GRAY } }, 'Cargando imagen...'))
+                  h('span', { style:{ fontSize:13, color:GRAY } }, 'Subiendo imagen...'),
+                  h('span', { style:{ fontSize:11, color:'#aaa' } }, 'Esto puede tardar unos segundos'))
               : prodForm.imagen
                 ? h('img', { key:prodForm.imagen.slice(-30), src:prodForm.imagen, alt:'Vista previa', style:{ width:'100%', height:'100%', objectFit:'cover' } })
                 : h('div', { style:{ display:'flex', flexDirection:'column', alignItems:'center', gap:10 } },
@@ -626,11 +693,11 @@ function App() {
             }, h(Icon, { name:'x', sz:15 }), 'Quitar')
           ),
 
-          /* Campo URL manual de respaldo (recomendado en paso 1) */
+          /* Campo URL manual (opcional — útil para Unsplash o imágenes ya alojadas) */
           h('div', { style:{ marginTop:12 } },
             h('label', { style:{ fontSize:11, color:GRAY, fontWeight:600, display:'block', marginBottom:5 } },
               h(Icon, { name:'link', sz:11, style:{ verticalAlign:-1, marginRight:3 } }),
-              'O pega una URL de imagen (recomendado por ahora)'),
+              'O pega una URL de imagen (opcional)'),
             h('input', {
               type:'url', value: prodForm.imagen && prodForm.imagen.startsWith('http') ? prodForm.imagen : '',
               onChange:e => pf('imagen', e.target.value),
